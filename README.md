@@ -1,93 +1,332 @@
-# cims-microservice
+# CIMS - Clinical Information Management System
 
+Système d'information de santé basé sur une architecture microservices.
 
-
-## Getting started
-
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
-
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
-
-## Add your files
-
-* [Create](https://docs.gitlab.com/user/project/repository/web_editor/#create-a-file) or [upload](https://docs.gitlab.com/user/project/repository/web_editor/#upload-a-file) files
-* [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
+## 🏗️ Architecture
 
 ```
-cd existing_repo
-git remote add origin https://gitlab.com/cims/microservice.git
-git branch -M main
-git push -uf origin main
+┌─────────────────────────────────────────────────────────────────┐
+│                          CLIENT                                  │
+│                     (React Frontend)                            │
+│                       Port: 3000                                │
+└──────────────────────┬──────────────────────────────────────────┘
+                       │
+                       ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    MICROSERVICES                                 │
+│                                                                  │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐             │
+│  │   AUTH      │  │  PATIENT    │  │    RDV      │             │
+│  │  SERVICE    │  │  SERVICE    │  │  SERVICE    │             │
+│  │   :3001     │  │   :3002     │  │   :3003     │             │
+│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘             │
+│         │                │                │                      │
+│         └────────────────┼────────────────┘                      │
+│                          │                                       │
+│                          ▼                                       │
+│                  ┌──────────────┐                               │
+│                  │   POSTGRES   │                               │
+│                  │    :5432     │                               │
+│                  │              │                               │
+│                  │ • cims_auth  │                               │
+│                  │ • cims_patients│                              │
+│                  │ • cims_rdv   │                               │
+│                  └──────────────┘                               │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-## Integrate with your tools
+## 📋 Services
 
-* [Set up project integrations](https://gitlab.com/cims/microservice/-/settings/integrations)
+### 1. Auth Service (Port 3001)
+- **Technologie**: Node.js + Express
+- **Base de données**: PostgreSQL (cims_auth)
+- **Responsabilités**:
+  - Authentification (login/register)
+  - Génération et vérification JWT
+  - Gestion des utilisateurs (patient, doctor, admin)
 
-## Collaborate with your team
+**Endpoints**:
+- `POST /api/auth/login` - Connexion
+- `POST /api/auth/register` - Inscription
+- `POST /api/auth/verify` - Vérification token (utilisé par les autres services)
+- `GET /api/auth/me` - Profil utilisateur
 
-* [Invite team members and collaborators](https://docs.gitlab.com/user/project/members/)
-* [Create a new merge request](https://docs.gitlab.com/user/project/merge_requests/creating_merge_requests/)
-* [Automatically close issues from merge requests](https://docs.gitlab.com/user/project/issues/managing_issues/#closing-issues-automatically)
-* [Enable merge request approvals](https://docs.gitlab.com/user/project/merge_requests/approvals/)
-* [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+### 2. Patient Service (Port 3002)
+- **Technologie**: Node.js + Express
+- **Base de données**: PostgreSQL (cims_patients)
+- **Responsabilités**:
+  - Gestion des dossiers patients
+  - CRUD patients (réservé aux doctors/admins)
 
-## Test and Deploy
+**Endpoints**:
+- `GET /api/patients` - Liste des patients (doctor/admin)
+- `GET /api/patients/:id` - Détail patient
+- `POST /api/patients` - Créer patient (doctor/admin)
+- `PUT /api/patients/:id` - Modifier patient (doctor/admin)
+- `DELETE /api/patients/:id` - Supprimer patient (admin)
 
-Use the built-in continuous integration in GitLab.
+### 3. RDV Service (Port 3003)
+- **Technologie**: Python + FastAPI
+- **Base de données**: PostgreSQL (cims_rdv)
+- **Responsabilités**:
+  - Gestion des rendez-vous
+  - Gestion des médecins
 
-* [Get started with GitLab CI/CD](https://docs.gitlab.com/ci/quick_start/)
-* [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/user/application_security/sast/)
-* [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/topics/autodevops/requirements/)
-* [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/user/clusters/agent/)
-* [Set up protected environments](https://docs.gitlab.com/ci/environments/protected_environments/)
+**Endpoints**:
+- `GET /api/rdv` - Tous les rendez-vous (doctor/admin)
+- `GET /api/rdv/my` - Mes rendez-vous (patient)
+- `POST /api/rdv` - Créer rendez-vous
+- `POST /api/rdv/:id/cancel` - Annuler rendez-vous
+- `GET /api/rdv/doctors` - Liste des médecins
 
-***
+### 4. Frontend (Port 3000)
+- **Technologie**: React + Vite
+- **Style**: CIMS Theme (bleu professionnel)
+- **Pages**:
+  - Login/Register
+  - Profil utilisateur
+  - Gestion rendez-vous
 
-# Editing this README
+## 🔐 Architecture de Sécurité
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+### Authentification
+1. **Auth Service** génère les tokens JWT
+2. **Patient Service** et **RDV Service** vérifient les tokens via l'endpoint `/api/auth/verify`
+3. Chaque service gère ses propres autorisations basées sur les rôles
 
-## Suggestions for a good README
+### Flux d'authentification
+```
+Client → Auth Service (login) → Token JWT
+Client → [Autres Services] + Token dans Header Authorization
+[Autres Services] → Auth Service (verify) → Validation
+```
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+## 🚀 Démarrage
 
-## Name
-Choose a self-explaining name for your project.
+### Prérequis
+- Docker & Docker Compose
+- Node.js (pour développement local)
+- Python 3.11+ (pour rdv-service)
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+### Lancement complet
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+```bash
+# Cloner le projet
+cd /data/project_PFE/cims-microservice
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+# Lancer tous les services
+sudo docker compose up --build -d
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+# Vérifier le statut
+./check.sh
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+# Voir les logs
+sudo docker compose logs -f [service-name]
+```
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+### URLs d'accès
+- **Frontend**: http://localhost:3000
+- **Auth API**: http://localhost:3001
+- **Patient API**: http://localhost:3002
+- **RDV API**: http://localhost:3003
+- **PostgreSQL**: localhost:5432
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+## 🗄️ Structure de la Base de Données
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+### cims_auth (Auth Service)
+```sql
+users:
+  - id (PK)
+  - email (unique)
+  - password (hash)
+  - first_name
+  - last_name
+  - role (patient/doctor/admin)
+  - created_at
+  - last_login
+```
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+### cims_patients (Patient Service)
+```sql
+patients:
+  - id (PK)
+  - first_name
+  - last_name
+  - email
+  - phone
+  - date_of_birth
+  - blood_type
+  - address
+  - created_at
+```
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+### cims_rdv (RDV Service)
+```sql
+appointments:
+  - id (PK)
+  - patient_id
+  - doctor_id
+  - appointment_date
+  - reason
+  - notes
+  - status (pending/confirmed/cancelled/completed)
+  - created_at
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+doctors:
+  - id (PK)
+  - name
+  - speciality
+  - email
+  - phone
+  - created_at
+```
 
-## License
-For open source projects, say how it is licensed.
+## 📝 Commandes utiles
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+```bash
+# Rebuild tous les services
+sudo docker compose down
+sudo docker compose up --build -d
+
+# Logs d'un service spécifique
+sudo docker compose logs -f auth-service
+sudo docker compose logs -f patient-service
+sudo docker compose logs -f rdv-service
+sudo docker compose logs -f frontend
+
+# Redémarrer un service
+sudo docker compose restart [service-name]
+
+# Entrer dans un conteneur
+sudo docker exec -it cims-auth sh
+sudo docker exec -it cims-patient sh
+sudo docker exec -it cims-rdv sh
+sudo docker exec -it cims-postgres psql -U postgres
+
+# Vérifier la santé des services
+curl http://localhost:3001/health
+curl http://localhost:3002/health
+curl http://localhost:3003/health
+```
+
+## 🔧 Configuration
+
+### Variables d'environnement
+
+Chaque service a son fichier `.env`:
+
+**auth-service/.env**:
+```
+PORT=3001
+JWT_SECRET=votre_secret_jwt
+```
+
+**patient-service/.env**:
+```
+PORT=3002
+AUTH_SERVICE_URL=http://auth-service:3001
+```
+
+**rdv-service/.env**:
+```
+PORT=3003
+AUTH_SERVICE_URL=http://auth-service:3001
+```
+
+## 🎨 Design System
+
+Le frontend utilise le **thème CIMS**:
+- **Couleur primaire**: `#1e5f8e` (bleu professionnel)
+- **Couleur secondaire**: `#0d9488` (teal)
+- **Police**: Segoe UI, system fonts
+- **Style**: Moderne, professionnel, inspiré de www.cims.tn
+
+## 🧪 Test de l'intégration
+
+### 1. Créer un compte
+```bash
+curl -X POST http://localhost:3001/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "test@example.com",
+    "password": "password123",
+    "firstName": "John",
+    "lastName": "Doe",
+    "role": "patient"
+  }'
+```
+
+### 2. Se connecter
+```bash
+curl -X POST http://localhost:3001/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "test@example.com",
+    "password": "password123"
+  }'
+```
+
+### 3. Créer un rendez-vous
+```bash
+curl -X POST http://localhost:3003/api/rdv \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
+  -d '{
+    "doctor_id": "dr-001",
+    "appointment_date": "2025-02-20T10:00:00",
+    "reason": "Consultation générale"
+  }'
+```
+
+## 📚 Documentation API
+
+### Auth Service
+- Swagger: Non disponible (Express)
+- Documentation: Voir `auth-service/auth.js`
+
+### RDV Service
+- Swagger: http://localhost:3003/docs (FastAPI auto-généré)
+- OpenAPI: http://localhost:3003/openapi.json
+
+## 🐛 Dépannage
+
+### Problème: "Cannot find module"
+**Solution**: Rebuild le service concerné
+```bash
+sudo docker compose build --no-cache [service-name]
+sudo docker compose up -d [service-name]
+```
+
+### Problème: "Service auth indisponible"
+**Solution**: Vérifier que auth-service est démarré
+```bash
+sudo docker compose ps
+sudo docker compose logs auth-service
+```
+
+### Problème: Erreur 403 sur les routes protégées
+**Solution**: Vérifier le token JWT et les rôles
+```bash
+# Vérifier le token
+curl -X POST http://localhost:3001/api/auth/verify \
+  -H "Authorization: Bearer <token>"
+```
+
+## 👥 Rôles et Permissions
+
+| Rôle | Permissions |
+|------|-------------|
+| **patient** | Voir son profil, créer/annuler ses RDV |
+| **doctor** | Voir tous les patients, tous les RDV, confirmer/modifier RDV |
+| **admin** | Toutes les permissions doctor + supprimer patients/modifier statuts |
+
+## 📞 Support
+
+Pour toute question ou problème:
+- Email: contact@cims.example
+- Tél: REDACTED_PHONE
+
+## 📄 Licence
+
+© 2025 CIMS - CIMS
+Tous droits réservés.
