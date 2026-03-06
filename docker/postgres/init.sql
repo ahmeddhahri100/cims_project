@@ -21,16 +21,19 @@ CREATE TABLE IF NOT EXISTS users (
 \c cims_patients;
 
 CREATE TABLE IF NOT EXISTS patients (
-  id SERIAL PRIMARY KEY,
+  id INTEGER PRIMARY KEY,
   first_name VARCHAR(100) NOT NULL,
   last_name VARCHAR(100) NOT NULL,
-  email VARCHAR(255) UNIQUE,
+  email VARCHAR(255),
   phone VARCHAR(20),
   date_of_birth DATE,
   blood_type VARCHAR(10),
   address TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Create index for faster lookups
+CREATE INDEX IF NOT EXISTS idx_patients_email ON patients(email);
 
 -- Connect to cims_rdv database and create tables
 \c cims_rdv;

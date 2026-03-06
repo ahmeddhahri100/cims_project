@@ -1,18 +1,19 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import Login from './pages/Login'
-import Register from './pages/Register'
-import Profile from './pages/Profile'
-import Appointments from './pages/Appointments'
-import { isAuthenticated } from './services/api'
-import './App.css'
-import './patient.css'
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import Login from "./pages/Login";
+import Register from "./pages/Register";
+import Profile from "./pages/Profile";
+import Appointments from "./pages/Appointments";
+import Calendar from "./pages/Calendar";
+import { isAuthenticated } from "./services/api";
+import "./App.css";
+import "./patient.css";
 
 // Protected route component
 function ProtectedRoute({ children }) {
   if (!isAuthenticated()) {
-    return <Navigate to="/" replace />
+    return <Navigate to="/" replace />;
   }
-  return children
+  return children;
 }
 
 function App() {
@@ -38,10 +39,18 @@ function App() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/calendar"
+            element={
+              <ProtectedRoute>
+                <Calendar />
+              </ProtectedRoute>
+            }
+          />
         </Routes>
       </div>
     </BrowserRouter>
-  )
+  );
 }
 
-export default App
+export default App;

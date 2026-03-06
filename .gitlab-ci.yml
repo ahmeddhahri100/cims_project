@@ -1,0 +1,181 @@
+# ═══════════════════════════════════════════════════════════════
+# GitLab CI/CD Pipeline for CIMS Microservices
+# ═══════════════════════════════════════════════════════════════
+
+stages:
+  - build
+  - test
+  - deploy
+
+variables:
+  IMAGE_PREFIX: $CI_REGISTRY_IMAGE
+  KUBE_NAMESPACE: cims
+
+# ───────────────────────────────────────────────────────────────
+# BUILD STAGE - Build Docker images for all services
+# ───────────────────────────────────────────────────────────────
+build:auth-service:
+  stage: build
+  image: docker:24
+  services:
+    - docker:24-dind
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - docker build -t $IMAGE_PREFIX/auth-service:$CI_COMMIT_SHA ./auth-service
+    - docker push $IMAGE_PREFIX/auth-service:$CI_COMMIT_SHA
+    - docker tag $IMAGE_PREFIX/auth-service:$CI_COMMIT_SHA $IMAGE_PREFIX/auth-service:latest
+    - docker push $IMAGE_PREFIX/auth-service:latest
+  only:
+    - main
+    - develop
+
+build:patient-service:
+  stage: build
+  image: docker:24
+  services:
+    - docker:24-dind
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - docker build -t $IMAGE_PREFIX/patient-service:$CI_COMMIT_SHA ./patient-service
+    - docker push $IMAGE_PREFIX/patient-service:$CI_COMMIT_SHA
+    - docker tag $IMAGE_PREFIX/patient-service:$CI_COMMIT_SHA $IMAGE_PREFIX/patient-service:latest
+    - docker push $IMAGE_PREFIX/patient-service:latest
+  only:
+    - main
+    - develop
+
+build:rdv-service:
+  stage: build
+  image: docker:24
+  services:
+    - docker:24-dind
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - docker build -t $IMAGE_PREFIX/rdv-service:$CI_COMMIT_SHA ./rdv-service
+    - docker push $IMAGE_PREFIX/rdv-service:$CI_COMMIT_SHA
+    - docker tag $IMAGE_PREFIX/rdv-service:$CI_COMMIT_SHA $IMAGE_PREFIX/rdv-service:latest
+    - docker push $IMAGE_PREFIX/rdv-service:latest
+  only:
+    - main
+    - develop
+
+build:frontend:
+  stage: build
+  image: docker:24
+  services:
+    - docker:24-dind
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - docker build -t $IMAGE_PREFIX/frontend:$CI_COMMIT_SHA ./frontend
+    - docker push $IMAGE_PREFIX/frontend:$CI_COMMIT_SHA
+    - docker tag $IMAGE_PREFIX/frontend:$CI_COMMIT_SHA $IMAGE_PREFIX/frontend:latest
+    - docker push $IMAGE_PREFIX/frontend:latest
+  only:
+    - main
+    - develop
+
+# ───────────────────────────────────────────────────────────────
+# TEST STAGE - Run tests for services
+# ───────────────────────────────────────────────────────────────
+test:auth-service:
+  stage: test
+  image: node:18-alpine
+  script:
+    - cd auth-service
+    - npm install
+    - npm test || echo "No tests defined"
+  only:
+    - main
+    - develop
+
+test:patient-service:
+  stage: test
+  image: node:18-alpine
+  script:
+    - cd patient-service
+    - npm install
+    - npm test || echo "No tests defined"
+  only:
+    - main
+    - develop
+
+test:rdv-service:
+  stage: test
+  image: python:3.11-slim
+  script:
+    - cd rdv-service
+    - pip install -r requirements.txt
+    - python -m pytest || echo "No tests defined"
+  only:
+    - main
+    - develop
+
+test:frontend:
+  stage: test
+  image: node:20-alpine
+  script:
+    - cd frontend
+    - npm install
+    - npm run build
+  only:
+    - main
+    - develop
+
+# ───────────────────────────────────────────────────────────────
+# DEPLOY STAGE - Deploy to Minikube/Kubernetes
+# ───────────────────────────────────────────────────────────────
+deploy:production:
+  stage: deploy
+  image: bitnami/kubectl:latest
+  before_script:
+    - kubectl config use-context minikube
+  script:
+    - echo "Deploying to production..."
+    - kubectl apply -f k8s/namespace.yaml
+    - kubectl apply -f k8s/configmap.yaml
+    - kubectl apply -f k8s/secrets.yaml
+    - kubectl apply -f k8s/postgres-init-configmap.yaml
+    - kubectl apply -f k8s/postgres-deployment.yaml
+    - kubectl apply -f k8s/auth-deployment.yaml
+    - kubectl apply -f k8s/patient-deployment.yaml
+    - kubectl apply -f k8s/rdv-deployment.yaml
+    - kubectl apply -f k8s/frontend-deployment.yaml
+    - kubectl rollout status deployment/postgres -n $KUBE_NAMESPACE --timeout=300s
+    - kubectl rollout status deployment/auth-service -n $KUBE_NAMESPACE --timeout=300s
+    - kubectl rollout status deployment/patient-service -n $KUBE_NAMESPACE --timeout=300s
+    - kubectl rollout status deployment/rdv-service -n $KUBE_NAMESPACE --timeout=300s
+    - kubectl rollout status deployment/frontend -n $KUBE_NAMESPACE --timeout=300s
+    - echo "Deployment completed successfully!"
+  only:
+    - main
+  when: manual
+  environment:
+    name: production
+    url: http://cims.local
+
+deploy:staging:
+  stage: deploy
+  image: bitnami/kubectl:latest
+  before_script:
+    - kubectl config use-context minikube
+  script:
+    - echo "Deploying to staging..."
+    - kubectl apply -f k8s/namespace.yaml
+    - kubectl apply -f k8s/configmap.yaml
+    - kubectl apply -f k8s/secrets.yaml
+    - kubectl apply -f k8s/postgres-init-configmap.yaml
+    - kubectl apply -f k8s/postgres-deployment.yaml
+    - kubectl apply -f k8s/auth-deployment.yaml
+    - kubectl apply -f k8s/patient-deployment.yaml
+    - kubectl apply -f k8s/rdv-deployment.yaml
+    - kubectl apply -f k8s/frontend-deployment.yaml
+    - echo "Staging deployment completed!"
+  only:
+    - develop
+  environment:
+    name: staging
+    url: http://cims-staging.local

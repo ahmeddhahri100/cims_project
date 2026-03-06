@@ -1,0 +1,85 @@
+# RDV Service Deployment for CIMS
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rdv-service
+  namespace: cims
+  labels:
+    app: rdv-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rdv-service
+  template:
+    metadata:
+      labels:
+        app: rdv-service
+    spec:
+      containers:
+      - name: rdv-service
+        image: registry.gitlab.com/YOUR_USERNAME/cims-microservice/rdv-service:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 3003
+          name: http
+        env:
+        - name: PORT
+          valueFrom:
+            configMapKeyRef:
+              name: cims-config
+              key: RDV_SERVICE_PORT
+        - name: AUTH_SERVICE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: cims-config
+              key: AUTH_SERVICE_URL
+        - name: PATIENT_SERVICE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: cims-config
+              key: PATIENT_SERVICE_URL
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: cims-secrets
+              key: RDV_DATABASE_URL
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3003
+          initialDelaySeconds: 40
+          periodSeconds: 10
+          timeoutSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 3003
+          initialDelaySeconds: 15
+          periodSeconds: 5
+          timeoutSeconds: 3
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rdv-service
+  namespace: cims
+  labels:
+    app: rdv-service
+spec:
+  type: ClusterIP
+  ports:
+  - port: 3003
+    targetPort: 3003
+    name: http
+  selector:
+    app: rdv-service

@@ -8,7 +8,7 @@ Système d'information de santé basé sur une architecture microservices.
 ┌─────────────────────────────────────────────────────────────────┐
 │                          CLIENT                                  │
 │                     (React Frontend)                            │
-│                       Port: 3000                                │
+│                       Port: 3004                                │
 └──────────────────────┬──────────────────────────────────────────┘
                        │
                        ▼
@@ -79,7 +79,7 @@ Système d'information de santé basé sur une architecture microservices.
 - `POST /api/rdv/:id/cancel` - Annuler rendez-vous
 - `GET /api/rdv/doctors` - Liste des médecins
 
-### 4. Frontend (Port 3000)
+### 4. Frontend (Port 3004)
 - **Technologie**: React + Vite
 - **Style**: CIMS Theme (bleu professionnel)
 - **Pages**:
@@ -125,7 +125,7 @@ sudo docker compose logs -f [service-name]
 ```
 
 ### URLs d'accès
-- **Frontend**: http://localhost:3000
+- **Frontend**: http://localhost:3004
 - **Auth API**: http://localhost:3001
 - **Patient API**: http://localhost:3002
 - **RDV API**: http://localhost:3003

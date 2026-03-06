@@ -32,6 +32,7 @@ AUTH_SERVICE_URL = os.getenv("AUTH_SERVICE_URL", "http://auth-service:3001")
 # ── Schémas Pydantic ────────────────────────────────────────────
 class AppointmentCreate(BaseModel):
     doctor_id: str
+    patient_id: Optional[str] = None  # For doctors to specify patient
     appointment_date: str  # Format ISO: 2025-02-20T10:00:00
     reason: str
     notes: Optional[str] = None
@@ -59,6 +60,9 @@ class DoctorOut(BaseModel):
     class Config:
         from_attributes = True
 
+# ── Service URLs ────────────────────────────────────────────────
+PATIENT_SERVICE_URL = os.getenv("PATIENT_SERVICE_URL", "http://patient-service:3002")
+
 # ── Auth middleware ─────────────────────────────────────────────
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Security(security)):
     token = credentials.credentials
@@ -75,6 +79,21 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Security(
         except httpx.RequestError:
             raise HTTPException(status_code=503, detail="Service auth indisponible")
 
+# ── Patient Service Integration ─────────────────────────────────
+async def get_patient_details(patient_id: str, token: str):
+    """Fetch patient details from patient-service"""
+    async with httpx.AsyncClient(timeout=3.0) as client:
+        try:
+            r = await client.get(
+                f"{PATIENT_SERVICE_URL}/api/patients/{patient_id}",
+                headers={"Authorization": f"Bearer {token}"}
+            )
+            if r.status_code == 200:
+                return r.json()
+            return None
+        except httpx.RequestError:
+            return None
+
 # ── Routes ──────────────────────────────────────────────────────
 
 @app.get("/health")
@@ -90,6 +109,45 @@ async def get_doctors(
     """Récupérer la liste des médecins"""
     return db.query(Doctor).all()
 
+# ── Patients (Proxy to patient-service) ─────────────────────────
+@app.get("/api/rdv/patients")
+async def search_patients(
+    user: dict = Depends(get_current_user),
+    credentials: HTTPAuthorizationCredentials = Security(security)
+):
+    """Rechercher des patients (médecin/admin uniquement) - proxy vers patient-service"""
+    if user["role"] not in ("doctor", "admin"):
+        raise HTTPException(status_code=403, detail="Réservé aux médecins et admins")
+
+    token = credentials.credentials
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        try:
+            r = await client.get(
+                f"{PATIENT_SERVICE_URL}/api/patients",
+                headers={"Authorization": f"Bearer {token}"}
+            )
+            if r.status_code == 200:
+                return r.json()
+            return {"count": 0, "patients": []}
+        except httpx.RequestError:
+            raise HTTPException(status_code=503, detail="Service patient indisponible")
+
+@app.get("/api/rdv/patients/{patient_id}")
+async def get_patient(
+    patient_id: str,
+    user: dict = Depends(get_current_user),
+    credentials: HTTPAuthorizationCredentials = Security(security)
+):
+    """Récupérer les détails d'un patient (médecin/admin uniquement)"""
+    if user["role"] not in ("doctor", "admin"):
+        raise HTTPException(status_code=403, detail="Réservé aux médecins et admins")
+
+    token = credentials.credentials
+    patient = await get_patient_details(patient_id, token)
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient introuvable")
+    return patient
+
 @app.post("/api/rdv/doctors/seed")
 async def seed_doctors(
     user: dict = Depends(get_current_user),
@@ -98,7 +156,7 @@ async def seed_doctors(
     """Initialiser les médecins (admin uniquement)"""
     if user["role"] not in ("doctor", "admin"):
         raise HTTPException(status_code=403, detail="Admin uniquement")
-    
+
     doctors_data = [
         {"id": "dr-001", "name": "Dr. Sana Mansour", "speciality": "Cardiologie"},
         {"id": "dr-002", "name": "Dr. Karim Trabelsi", "speciality": "Pédiatrie"},
@@ -106,13 +164,13 @@ async def seed_doctors(
         {"id": "dr-004", "name": "Dr. Mounir Belhaj", "speciality": "Dermatologie"},
         {"id": "dr-005", "name": "Dr. Ines Sfar", "speciality": "Gynécologie"},
     ]
-    
+
     for doc_data in doctors_data:
         existing = db.query(Doctor).filter(Doctor.id == doc_data["id"]).first()
         if not existing:
             doctor = Doctor(**doc_data)
             db.add(doctor)
-    
+
     db.commit()
     return {"message": "Médecins initialisés"}
 
@@ -124,16 +182,29 @@ async def seed_doctors(
 async def create_appointment(
     body: AppointmentCreate,
     user: dict = Depends(get_current_user),
+    credentials: HTTPAuthorizationCredentials = Security(security),
     db: Session = Depends(get_db)
 ):
     from datetime import datetime as dt
-    
+
+    # Déterminer le patient_id
+    # Les médecins peuvent créer des RDV pour d'autres patients
+    # Les patients ne peuvent créer que leurs propres RDV
+    if body.patient_id:
+        # Un patient_id est spécifié
+        if user["role"] == "patient" and body.patient_id != str(user["userId"]):
+            raise HTTPException(status_code=403, detail="Vous ne pouvez créer des RDV que pour vous-même")
+        patient_id = body.patient_id
+    else:
+        # Pas de patient_id spécifié, utiliser l'utilisateur actuel
+        patient_id = str(user["userId"])
+
     # Parser la date
     try:
         appt_date = dt.fromisoformat(body.appointment_date.replace('Z', '+00:00'))
     except:
         appt_date = dt.strptime(body.appointment_date, "%Y-%m-%dT%H:%M:%S")
-    
+
     # Vérifier qu'aucun RDV n'existe déjà pour ce médecin à cette heure
     conflict = db.query(Appointment).filter(
         Appointment.doctor_id == body.doctor_id,
@@ -145,7 +216,7 @@ async def create_appointment(
         raise HTTPException(status_code=409, detail="Ce créneau est déjà réservé")
 
     rdv = Appointment(
-        patient_id=user["userId"],
+        patient_id=patient_id,
         doctor_id=body.doctor_id,
         appointment_date=appt_date,
         reason=body.reason,
