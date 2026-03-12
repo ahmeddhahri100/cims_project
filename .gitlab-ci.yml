@@ -31,6 +31,7 @@ build:auth-service:
   only:
     - main
     - develop
+    - /^003-/
 
 build:patient-service:
   stage: build
@@ -47,6 +48,7 @@ build:patient-service:
   only:
     - main
     - develop
+    - /^003-/
 
 build:rdv-service:
   stage: build
@@ -63,6 +65,7 @@ build:rdv-service:
   only:
     - main
     - develop
+    - /^003-/
 
 build:frontend:
   stage: build
@@ -79,6 +82,7 @@ build:frontend:
   only:
     - main
     - develop
+    - /^003-/
 
 # ───────────────────────────────────────────────────────────────
 # TEST STAGE - Run tests for services
@@ -138,6 +142,7 @@ semgrep:
     - if: $CI_PIPELINE_SOURCE == "web"  # allow triggering a scan manually from the gitlab UI
     - if: $CI_MERGE_REQUEST_IID  # scan on merge request events
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH  # scan on push events to default branch
+    - if: $CI_COMMIT_BRANCH =~ /^003-/  # scan on feature branches for testing
   variables:
     SEMGREP_APP_TOKEN: $SEMGREP_APP_TOKEN
   artifacts:
