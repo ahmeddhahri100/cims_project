@@ -5,10 +5,12 @@
 stages:
   - build
   - test
+  - security
   - deploy
 
 variables:
   IMAGE_PREFIX: $CI_REGISTRY_IMAGE
+  IMAGE_TAG: $CI_COMMIT_SHORT_SHA
   KUBE_NAMESPACE: cims
 
 # ───────────────────────────────────────────────────────────────
@@ -22,9 +24,9 @@ build:auth-service:
   before_script:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
   script:
-    - docker build -t $IMAGE_PREFIX/auth-service:$CI_COMMIT_SHA ./auth-service
-    - docker push $IMAGE_PREFIX/auth-service:$CI_COMMIT_SHA
-    - docker tag $IMAGE_PREFIX/auth-service:$CI_COMMIT_SHA $IMAGE_PREFIX/auth-service:latest
+    - docker build -t $IMAGE_PREFIX/auth-service:$IMAGE_TAG ./auth-service
+    - docker push $IMAGE_PREFIX/auth-service:$IMAGE_TAG
+    - docker tag $IMAGE_PREFIX/auth-service:$IMAGE_TAG $IMAGE_PREFIX/auth-service:latest
     - docker push $IMAGE_PREFIX/auth-service:latest
   only:
     - main
@@ -38,9 +40,9 @@ build:patient-service:
   before_script:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
   script:
-    - docker build -t $IMAGE_PREFIX/patient-service:$CI_COMMIT_SHA ./patient-service
-    - docker push $IMAGE_PREFIX/patient-service:$CI_COMMIT_SHA
-    - docker tag $IMAGE_PREFIX/patient-service:$CI_COMMIT_SHA $IMAGE_PREFIX/patient-service:latest
+    - docker build -t $IMAGE_PREFIX/patient-service:$IMAGE_TAG ./patient-service
+    - docker push $IMAGE_PREFIX/patient-service:$IMAGE_TAG
+    - docker tag $IMAGE_PREFIX/patient-service:$IMAGE_TAG $IMAGE_PREFIX/patient-service:latest
     - docker push $IMAGE_PREFIX/patient-service:latest
   only:
     - main
@@ -54,9 +56,9 @@ build:rdv-service:
   before_script:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
   script:
-    - docker build -t $IMAGE_PREFIX/rdv-service:$CI_COMMIT_SHA ./rdv-service
-    - docker push $IMAGE_PREFIX/rdv-service:$CI_COMMIT_SHA
-    - docker tag $IMAGE_PREFIX/rdv-service:$CI_COMMIT_SHA $IMAGE_PREFIX/rdv-service:latest
+    - docker build -t $IMAGE_PREFIX/rdv-service:$IMAGE_TAG ./rdv-service
+    - docker push $IMAGE_PREFIX/rdv-service:$IMAGE_TAG
+    - docker tag $IMAGE_PREFIX/rdv-service:$IMAGE_TAG $IMAGE_PREFIX/rdv-service:latest
     - docker push $IMAGE_PREFIX/rdv-service:latest
   only:
     - main
@@ -70,9 +72,9 @@ build:frontend:
   before_script:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
   script:
-    - docker build -t $IMAGE_PREFIX/frontend:$CI_COMMIT_SHA ./frontend
-    - docker push $IMAGE_PREFIX/frontend:$CI_COMMIT_SHA
-    - docker tag $IMAGE_PREFIX/frontend:$CI_COMMIT_SHA $IMAGE_PREFIX/frontend:latest
+    - docker build -t $IMAGE_PREFIX/frontend:$IMAGE_TAG ./frontend
+    - docker push $IMAGE_PREFIX/frontend:$IMAGE_TAG
+    - docker tag $IMAGE_PREFIX/frontend:$IMAGE_TAG $IMAGE_PREFIX/frontend:latest
     - docker push $IMAGE_PREFIX/frontend:latest
   only:
     - main
@@ -126,6 +128,28 @@ test:frontend:
     - develop
 
 # ───────────────────────────────────────────────────────────────
+# SECURITY STAGE - SAST scanning with Semgrep
+# ───────────────────────────────────────────────────────────────
+semgrep:
+  image: semgrep/semgrep
+  script:
+    - semgrep ci --sarif --output=semgrep.sarif
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "web"  # allow triggering a scan manually from the gitlab UI
+    - if: $CI_MERGE_REQUEST_IID  # scan on merge request events
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH  # scan on push events to default branch
+  variables:
+    SEMGREP_APP_TOKEN: $SEMGREP_APP_TOKEN
+  artifacts:
+    reports:
+      sarif: semgrep.sarif
+    paths:
+      - semgrep.sarif
+    expire_in: 30 days
+  # To configure MR comments on gitlab.com, see https://semgrep.dev/docs/semgrep-cloud-platform/gitlab-mr-comments/#steps-to-set-up-mr-comments
+  # GITLAB_TOKEN: $PAT add this in gitlabci
+
+# ───────────────────────────────────────────────────────────────
 # DEPLOY STAGE - Deploy to Minikube/Kubernetes
 # ───────────────────────────────────────────────────────────────
 deploy:production:
@@ -139,6 +163,11 @@ deploy:production:
     - kubectl apply -f k8s/configmap.yaml
     - kubectl apply -f k8s/secrets.yaml
     - kubectl apply -f k8s/postgres-init-configmap.yaml
+    - # Dynamic tagging
+    - sed -i "s|image:.*auth-service:latest|image: $IMAGE_PREFIX/auth-service:$IMAGE_TAG|g" k8s/auth-deployment.yaml
+    - sed -i "s|image:.*patient-service:latest|image: $IMAGE_PREFIX/patient-service:$IMAGE_TAG|g" k8s/patient-deployment.yaml
+    - sed -i "s|image:.*rdv-service:latest|image: $IMAGE_PREFIX/rdv-service:$IMAGE_TAG|g" k8s/rdv-deployment.yaml
+    - sed -i "s|image:.*frontend:latest|image: $IMAGE_PREFIX/frontend:$IMAGE_TAG|g" k8s/frontend-deployment.yaml
     - kubectl apply -f k8s/postgres-deployment.yaml
     - kubectl apply -f k8s/auth-deployment.yaml
     - kubectl apply -f k8s/patient-deployment.yaml
@@ -168,6 +197,11 @@ deploy:staging:
     - kubectl apply -f k8s/configmap.yaml
     - kubectl apply -f k8s/secrets.yaml
     - kubectl apply -f k8s/postgres-init-configmap.yaml
+    - # Dynamic tagging
+    - sed -i "s|image:.*auth-service:latest|image: $IMAGE_PREFIX/auth-service:$IMAGE_TAG|g" k8s/auth-deployment.yaml
+    - sed -i "s|image:.*patient-service:latest|image: $IMAGE_PREFIX/patient-service:$IMAGE_TAG|g" k8s/patient-deployment.yaml
+    - sed -i "s|image:.*rdv-service:latest|image: $IMAGE_PREFIX/rdv-service:$IMAGE_TAG|g" k8s/rdv-deployment.yaml
+    - sed -i "s|image:.*frontend:latest|image: $IMAGE_PREFIX/frontend:$IMAGE_TAG|g" k8s/frontend-deployment.yaml
     - kubectl apply -f k8s/postgres-deployment.yaml
     - kubectl apply -f k8s/auth-deployment.yaml
     - kubectl apply -f k8s/patient-deployment.yaml
