@@ -162,7 +162,6 @@ deploy:production:
     - kubectl apply -f k8s/configmap.yaml
     - kubectl apply -f k8s/secrets.yaml
     - kubectl apply -f k8s/postgres-init-configmap.yaml
-    - # Dynamic tagging
     - sed -i "s|image:.*auth-service:latest|image: $IMAGE_PREFIX/auth-service:$IMAGE_TAG|g" k8s/auth-deployment.yaml
     - sed -i "s|image:.*patient-service:latest|image: $IMAGE_PREFIX/patient-service:$IMAGE_TAG|g" k8s/patient-deployment.yaml
     - sed -i "s|image:.*rdv-service:latest|image: $IMAGE_PREFIX/rdv-service:$IMAGE_TAG|g" k8s/rdv-deployment.yaml
@@ -196,7 +195,6 @@ deploy:staging:
     - kubectl apply -f k8s/configmap.yaml
     - kubectl apply -f k8s/secrets.yaml
     - kubectl apply -f k8s/postgres-init-configmap.yaml
-    - # Dynamic tagging
     - sed -i "s|image:.*auth-service:latest|image: $IMAGE_PREFIX/auth-service:$IMAGE_TAG|g" k8s/auth-deployment.yaml
     - sed -i "s|image:.*patient-service:latest|image: $IMAGE_PREFIX/patient-service:$IMAGE_TAG|g" k8s/patient-deployment.yaml
     - sed -i "s|image:.*rdv-service:latest|image: $IMAGE_PREFIX/rdv-service:$IMAGE_TAG|g" k8s/rdv-deployment.yaml
