@@ -10,9 +10,13 @@ metadata:
   labels:
     app: cims-microservices
 data:
-  # PostgreSQL Configuration
+  # Database Hosts
   POSTGRES_HOST: "postgres"
+  MONGODB_HOST: "mongodb-service"
+  MYSQL_HOST: "mysql-service"
   POSTGRES_PORT: "5432"
+  MONGODB_PORT: "27017"
+  MYSQL_PORT: "3306"
   POSTGRES_USER: "postgres"
 
   # Database Names

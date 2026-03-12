@@ -11,8 +11,6 @@ data:
   init.sql: |
     -- Create databases
     CREATE DATABASE cims_auth;
-    CREATE DATABASE cims_patients;
-    CREATE DATABASE cims_rdv;
 
     -- Connect to cims_auth database and create tables
     \c cims_auth;
@@ -27,52 +25,3 @@ data:
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       last_login TIMESTAMP
     );
-
-    -- Connect to cims_patients database and create tables
-    \c cims_patients;
-
-    CREATE TABLE IF NOT EXISTS patients (
-      id INTEGER PRIMARY KEY,
-      first_name VARCHAR(100) NOT NULL,
-      last_name VARCHAR(100) NOT NULL,
-      email VARCHAR(255),
-      phone VARCHAR(20),
-      date_of_birth DATE,
-      blood_type VARCHAR(10),
-      address TEXT,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_patients_email ON patients(email);
-
-    -- Connect to cims_rdv database and create tables
-    \c cims_rdv;
-
-    CREATE TABLE IF NOT EXISTS appointments (
-      id SERIAL PRIMARY KEY,
-      patient_id VARCHAR(255) NOT NULL,
-      doctor_id VARCHAR(255) NOT NULL,
-      appointment_date TIMESTAMP NOT NULL,
-      reason VARCHAR(255) NOT NULL,
-      notes TEXT,
-      status VARCHAR(50) DEFAULT 'pending',
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-
-    CREATE TABLE IF NOT EXISTS doctors (
-      id VARCHAR(50) PRIMARY KEY,
-      name VARCHAR(255) NOT NULL,
-      speciality VARCHAR(255) NOT NULL,
-      email VARCHAR(255),
-      phone VARCHAR(20),
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-
-    -- Insert default doctors
-    INSERT INTO doctors (id, name, speciality) VALUES
-      ('dr-001', 'Dr. Sana Mansour', 'Cardiologie'),
-      ('dr-002', 'Dr. Karim Trabelsi', 'Pédiatrie'),
-      ('dr-003', 'Dr. Leila Gharbi', 'Neurologie'),
-      ('dr-004', 'Dr. Mounir Belhaj', 'Dermatologie'),
-      ('dr-005', 'Dr. Ines Sfar', 'Gynécologie')
-    ON CONFLICT (id) DO NOTHING;

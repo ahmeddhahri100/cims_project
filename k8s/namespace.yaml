@@ -9,4 +9,5 @@ metadata:
   labels:
     name: cims
     app: cims-microservices
-    environment: production
+    environment: development
+    project: cims-pfe

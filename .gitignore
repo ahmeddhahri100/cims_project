@@ -1,8 +1,22 @@
+# Node.js
 node_modules/
-.env
 dist/
 *.log
-.DS_Store
+.env*
+coverage/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+*.egg-info/
+.pytest_cache/
+
+# Docker
+.dockerignore
 
 # Binaries
 minikube-linux-amd64
@@ -23,4 +37,17 @@ generate_k8s_files.py
 *.iml
 
 # OS
+.DS_Store
 Thumbs.db
+
+# Kubernetes
+*.secret.yaml
+secrets/
+.kube/
+kubeconfig*
+*.key
+*.crt
+
+# SAST Reports
+semgrep.sarif
+*.sarif

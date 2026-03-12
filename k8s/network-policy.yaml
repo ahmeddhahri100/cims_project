@@ -1,0 +1,56 @@
+# Network Policies for CIMS security
+# ═══════════════════════════════════════════════════════════════
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: postgres-access-policy
+  namespace: cims
+spec:
+  podSelector:
+    matchLabels:
+      app: postgres
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: auth-service
+    - podSelector:
+        matchLabels:
+          app: patient-service
+    - podSelector:
+        matchLabels:
+          app: rdv-service
+    ports:
+    - protocol: TCP
+      port: 5432
+
+---
+# Restrict backend access to only known pods
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: backend-policy
+  namespace: cims
+spec:
+  podSelector:
+    matchLabels:
+      app: auth-service # Apply to backend services
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: frontend # Frontend can access auth-service for login etc
+    - podSelector:
+        matchLabels:
+          app: patient-service # Patient service might need to verify tokens
+    - podSelector:
+        matchLabels:
+          app: rdv-service # RDV service might need to verify tokens
+    ports:
+    - protocol: TCP
+      port: 3001

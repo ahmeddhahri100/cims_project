@@ -320,6 +320,41 @@ curl -X POST http://localhost:3001/api/auth/verify \
 | **doctor** | Voir tous les patients, tous les RDV, confirmer/modifier RDV |
 | **admin** | Toutes les permissions doctor + supprimer patients/modifier statuts |
 
+## 🛡️ Security - SAST Scanning
+
+### Running SAST Scan Locally
+
+```bash
+# Run SAST scan (requires Docker)
+./pipeline/scan-sast.sh
+```
+
+### Viewing SARIF Results
+
+The scan generates a `semgrep.sarif` file that can be viewed locally:
+
+#### Option 1: VS Code SARIF Viewer (Recommended)
+1. Install the **SARIF Viewer** extension in VS Code
+2. Open `semgrep.sarif` in VS Code
+3. Results will be displayed with code snippets and remediation guidance
+
+#### Option 2: GitHub Code Scanning
+1. Upload the `semgrep.sarif` file to a GitHub repository
+2. Go to **Security** → **Code Scanning** to view results
+
+#### Option 3: Command Line
+```bash
+# View JSON results directly
+cat semgrep.sarif | jq '.runs[].results'
+```
+
+### GitLab CI Integration
+
+The SAST scan runs automatically in the GitLab CI pipeline:
+- Triggered on merge requests and main branch commits
+- SARIF artifacts are stored for 30 days
+- View results in GitLab CI job logs
+
 ## 📞 Support
 
 Pour toute question ou problème:
