@@ -1,6 +1,6 @@
-# ═══════════════════════════════════════════════════════════════
+# ==============================================================
 # GitLab CI/CD Pipeline for CIMS Microservices
-# ═══════════════════════════════════════════════════════════════
+# ==============================================================
 
 stages:
   - build
@@ -13,9 +13,9 @@ variables:
   IMAGE_TAG: $CI_COMMIT_SHORT_SHA
   KUBE_NAMESPACE: cims
 
-# ───────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------
 # BUILD STAGE - Build Docker images for all services
-# ───────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------
 build:auth-service:
   stage: build
   image: docker:24
@@ -84,9 +84,9 @@ build:frontend:
     - develop
     - /^003-/
 
-# ───────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------
 # TEST STAGE - Run tests for services
-# ───────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------
 test:auth-service:
   stage: test
   image: node:18-alpine
@@ -131,9 +131,9 @@ test:frontend:
     - main
     - develop
 
-# ───────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------
 # SECURITY STAGE - SAST scanning with Semgrep
-# ───────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------
 semgrep:
   image: semgrep/semgrep
   script:
@@ -148,9 +148,9 @@ semgrep:
   # To configure MR comments on gitlab.com, see https://semgrep.dev/docs/semgrep-cloud-platform/gitlab-mr-comments/#steps-to-set-up-mr-comments
   # GITLAB_TOKEN: $PAT add this in gitlabci
 
-# ───────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------
 # DEPLOY STAGE - Deploy to Minikube/Kubernetes
-# ───────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------
 deploy:production:
   stage: deploy
   image: bitnami/kubectl:latest
@@ -162,16 +162,21 @@ deploy:production:
     - kubectl apply -f k8s/configmap.yaml
     - kubectl apply -f k8s/secrets.yaml
     - kubectl apply -f k8s/postgres-init-configmap.yaml
+    - kubectl apply -f k8s/mysql-init-configmap.yaml
     - sed -i "s|image:.*auth-service:latest|image: $IMAGE_PREFIX/auth-service:$IMAGE_TAG|g" k8s/auth-deployment.yaml
     - sed -i "s|image:.*patient-service:latest|image: $IMAGE_PREFIX/patient-service:$IMAGE_TAG|g" k8s/patient-deployment.yaml
     - sed -i "s|image:.*rdv-service:latest|image: $IMAGE_PREFIX/rdv-service:$IMAGE_TAG|g" k8s/rdv-deployment.yaml
     - sed -i "s|image:.*frontend:latest|image: $IMAGE_PREFIX/frontend:$IMAGE_TAG|g" k8s/frontend-deployment.yaml
     - kubectl apply -f k8s/postgres-deployment.yaml
+    - kubectl apply -f k8s/mongodb-deployment.yaml
+    - kubectl apply -f k8s/mysql-deployment.yaml
     - kubectl apply -f k8s/auth-deployment.yaml
     - kubectl apply -f k8s/patient-deployment.yaml
     - kubectl apply -f k8s/rdv-deployment.yaml
     - kubectl apply -f k8s/frontend-deployment.yaml
     - kubectl rollout status deployment/postgres -n $KUBE_NAMESPACE --timeout=300s
+    - kubectl rollout status deployment/mongodb -n $KUBE_NAMESPACE --timeout=300s
+    - kubectl rollout status deployment/mysql -n $KUBE_NAMESPACE --timeout=300s
     - kubectl rollout status deployment/auth-service -n $KUBE_NAMESPACE --timeout=300s
     - kubectl rollout status deployment/patient-service -n $KUBE_NAMESPACE --timeout=300s
     - kubectl rollout status deployment/rdv-service -n $KUBE_NAMESPACE --timeout=300s
@@ -195,15 +200,25 @@ deploy:staging:
     - kubectl apply -f k8s/configmap.yaml
     - kubectl apply -f k8s/secrets.yaml
     - kubectl apply -f k8s/postgres-init-configmap.yaml
+    - kubectl apply -f k8s/mysql-init-configmap.yaml
     - sed -i "s|image:.*auth-service:latest|image: $IMAGE_PREFIX/auth-service:$IMAGE_TAG|g" k8s/auth-deployment.yaml
     - sed -i "s|image:.*patient-service:latest|image: $IMAGE_PREFIX/patient-service:$IMAGE_TAG|g" k8s/patient-deployment.yaml
     - sed -i "s|image:.*rdv-service:latest|image: $IMAGE_PREFIX/rdv-service:$IMAGE_TAG|g" k8s/rdv-deployment.yaml
     - sed -i "s|image:.*frontend:latest|image: $IMAGE_PREFIX/frontend:$IMAGE_TAG|g" k8s/frontend-deployment.yaml
     - kubectl apply -f k8s/postgres-deployment.yaml
+    - kubectl apply -f k8s/mongodb-deployment.yaml
+    - kubectl apply -f k8s/mysql-deployment.yaml
     - kubectl apply -f k8s/auth-deployment.yaml
     - kubectl apply -f k8s/patient-deployment.yaml
     - kubectl apply -f k8s/rdv-deployment.yaml
     - kubectl apply -f k8s/frontend-deployment.yaml
+    - kubectl rollout status deployment/postgres -n $KUBE_NAMESPACE --timeout=300s
+    - kubectl rollout status deployment/mongodb -n $KUBE_NAMESPACE --timeout=300s
+    - kubectl rollout status deployment/mysql -n $KUBE_NAMESPACE --timeout=300s
+    - kubectl rollout status deployment/auth-service -n $KUBE_NAMESPACE --timeout=300s
+    - kubectl rollout status deployment/patient-service -n $KUBE_NAMESPACE --timeout=300s
+    - kubectl rollout status deployment/rdv-service -n $KUBE_NAMESPACE --timeout=300s
+    - kubectl rollout status deployment/frontend -n $KUBE_NAMESPACE --timeout=300s
     - echo "Staging deployment completed!"
   only:
     - develop
