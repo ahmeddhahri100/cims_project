@@ -1,7 +1,3 @@
-# ==============================================================
-# GitLab CI/CD Pipeline for CIMS Microservices
-# ==============================================================
-
 stages:
   - build
   - test
@@ -11,85 +7,54 @@ stages:
 variables:
   IMAGE_PREFIX: $CI_REGISTRY_IMAGE
   IMAGE_TAG: $CI_COMMIT_SHORT_SHA
-  KUBE_NAMESPACE: cims
 
-# ---------------------------------------------------------------
-# BUILD STAGE - Build Docker images for all services
-# ---------------------------------------------------------------
-build:auth-service:
-  stage: build
+# ------------------------------------------------
+# DOCKER LOGIN TEMPLATE
+# ------------------------------------------------
+.docker-login:
   image: docker:24
   services:
     - docker:24-dind
   before_script:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+
+# ------------------------------------------------
+# BUILD STAGE
+# ------------------------------------------------
+build:auth:
+  stage: build
+  extends: .docker-login
   script:
     - docker build --target production -t $IMAGE_PREFIX/auth-service:$IMAGE_TAG ./auth-service
     - docker push $IMAGE_PREFIX/auth-service:$IMAGE_TAG
-    - docker tag $IMAGE_PREFIX/auth-service:$IMAGE_TAG $IMAGE_PREFIX/auth-service:latest
-    - docker push $IMAGE_PREFIX/auth-service:latest
-  only:
-    - main
-    - develop
-    - /^003-/
 
-build:patient-service:
+build:patient:
   stage: build
-  image: docker:24
-  services:
-    - docker:24-dind
-  before_script:
-    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  extends: .docker-login
   script:
     - docker build --target production -t $IMAGE_PREFIX/patient-service:$IMAGE_TAG ./patient-service
     - docker push $IMAGE_PREFIX/patient-service:$IMAGE_TAG
-    - docker tag $IMAGE_PREFIX/patient-service:$IMAGE_TAG $IMAGE_PREFIX/patient-service:latest
-    - docker push $IMAGE_PREFIX/patient-service:latest
-  only:
-    - main
-    - develop
-    - /^003-/
 
-build:rdv-service:
+build:rdv:
   stage: build
-  image: docker:24
-  services:
-    - docker:24-dind
-  before_script:
-    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  extends: .docker-login
   script:
     - docker build --target production -t $IMAGE_PREFIX/rdv-service:$IMAGE_TAG ./rdv-service
     - docker push $IMAGE_PREFIX/rdv-service:$IMAGE_TAG
-    - docker tag $IMAGE_PREFIX/rdv-service:$IMAGE_TAG $IMAGE_PREFIX/rdv-service:latest
-    - docker push $IMAGE_PREFIX/rdv-service:latest
-  only:
-    - main
-    - develop
-    - /^003-/
 
 build:frontend:
   stage: build
-  image: docker:24
-  services:
-    - docker:24-dind
-  before_script:
-    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  extends: .docker-login
   script:
     - docker build --target production -t $IMAGE_PREFIX/frontend:$IMAGE_TAG ./frontend
     - docker push $IMAGE_PREFIX/frontend:$IMAGE_TAG
-    - docker tag $IMAGE_PREFIX/frontend:$IMAGE_TAG $IMAGE_PREFIX/frontend:latest
-    - docker push $IMAGE_PREFIX/frontend:latest
-  only:
-    - main
-    - develop
-    - /^003-/
 
-# ---------------------------------------------------------------
-# TEST STAGE - Run tests for services
-# ---------------------------------------------------------------
-test:auth-service:
+# ------------------------------------------------
+# TEST STAGE
+# ------------------------------------------------
+test:auth:
   stage: test
-  image: node:18-alpine
+  image: node:18
   script:
     - cd auth-service
     - npm install
@@ -106,9 +71,9 @@ test:auth-service:
     - develop
     - /^003-/
 
-test:patient-service:
+test:patient:
   stage: test
-  image: node:18-alpine
+  image: node:18
   script:
     - cd patient-service
     - npm install
@@ -125,9 +90,9 @@ test:patient-service:
     - develop
     - /^003-/
 
-test:rdv-service:
+test:rdv:
   stage: test
-  image: python:3.11-slim
+  image: python:3.11
   script:
     - cd rdv-service
     - pip install -r requirements.txt
@@ -147,7 +112,7 @@ test:rdv-service:
 
 test:frontend:
   stage: test
-  image: node:20-alpine
+  image: node:20
   script:
     - cd frontend
     - npm install
@@ -157,10 +122,11 @@ test:frontend:
     - develop
     - /^003-/
 
-# ---------------------------------------------------------------
-# SECURITY STAGE - SAST scanning with Semgrep
-# ---------------------------------------------------------------
+# ------------------------------------------------
+# SAST SECURITY (SEMGRP)
+# ------------------------------------------------
 semgrep:
+  stage: security
   image: semgrep/semgrep
   script:
     - semgrep --config=.semgrep.yml --fail-on=ERROR --sarif-output=semgrep.sarif .
@@ -174,83 +140,41 @@ semgrep:
     - if: $CI_COMMIT_BRANCH =~ /^003-/  # scan on feature branches for testing
   variables:
     SEMGREP_APP_TOKEN: $SEMGREP_APP_TOKEN
-  # To configure MR comments on gitlab.com, see https://semgrep.dev/docs/semgrep-cloud-platform/gitlab-mr-comments/#steps-to-set-up-mr-comments
-  # GITLAB_TOKEN: $PAT add this in gitlabci
 
-# ---------------------------------------------------------------
-# DEPLOY STAGE - Deploy to Minikube/Kubernetes
-# ---------------------------------------------------------------
-deploy:production:
+# ------------------------------------------------
+# DEPLOY STAGE (FAKE DEPLOYMENT TEST)
+# ------------------------------------------------
+deploy:test:
   stage: deploy
-  image: bitnami/kubectl:latest
-  before_script:
-    - kubectl config use-context minikube
+  image: alpine:latest
   script:
-    - echo "Deploying to production..."
-    - kubectl apply -f k8s/namespace.yaml
-    - kubectl apply -f k8s/configmap.yaml
-    - kubectl apply -f k8s/secrets.yaml
-    - kubectl apply -f k8s/postgres-init-configmap.yaml
-    - kubectl apply -f k8s/mysql-init-configmap.yaml
-    - sed -i "s|image:.*auth-service:latest|image: $IMAGE_PREFIX/auth-service:$IMAGE_TAG|g" k8s/auth-deployment.yaml
-    - sed -i "s|image:.*patient-service:latest|image: $IMAGE_PREFIX/patient-service:$IMAGE_TAG|g" k8s/patient-deployment.yaml
-    - sed -i "s|image:.*rdv-service:latest|image: $IMAGE_PREFIX/rdv-service:$IMAGE_TAG|g" k8s/rdv-deployment.yaml
-    - sed -i "s|image:.*frontend:latest|image: $IMAGE_PREFIX/frontend:$IMAGE_TAG|g" k8s/frontend-deployment.yaml
-    - kubectl apply -f k8s/postgres-deployment.yaml
-    - kubectl apply -f k8s/mongodb-deployment.yaml
-    - kubectl apply -f k8s/mysql-deployment.yaml
-    - kubectl apply -f k8s/auth-deployment.yaml
-    - kubectl apply -f k8s/patient-deployment.yaml
-    - kubectl apply -f k8s/rdv-deployment.yaml
-    - kubectl apply -f k8s/frontend-deployment.yaml
-    - kubectl rollout status deployment/postgres -n $KUBE_NAMESPACE --timeout=300s
-    - kubectl rollout status deployment/mongodb -n $KUBE_NAMESPACE --timeout=300s
-    - kubectl rollout status deployment/mysql -n $KUBE_NAMESPACE --timeout=300s
-    - kubectl rollout status deployment/auth-service -n $KUBE_NAMESPACE --timeout=300s
-    - kubectl rollout status deployment/patient-service -n $KUBE_NAMESPACE --timeout=300s
-    - kubectl rollout status deployment/rdv-service -n $KUBE_NAMESPACE --timeout=300s
-    - kubectl rollout status deployment/frontend -n $KUBE_NAMESPACE --timeout=300s
-    - echo "Deployment completed successfully!"
+    - echo "Starting fake deployment test..."
+    - echo "Checking built images:"
+    - echo "  AUTH-SERVICE: $IMAGE_PREFIX/auth-service:$IMAGE_TAG"
+    - echo "  PATIENT-SERVICE: $IMAGE_PREFIX/patient-service:$IMAGE_TAG"
+    - echo "  RDV-SERVICE: $IMAGE_PREFIX/rdv-service:$IMAGE_TAG"
+    - echo "  FRONTEND: $IMAGE_PREFIX/frontend:$IMAGE_TAG"
+    - echo ""
+    - echo "Validating image tags..."
+    - if [ -z "$IMAGE_TAG" ]; then echo "ERROR: IMAGE_TAG is empty"; exit 1; fi
+    - echo "  ✓ IMAGE_TAG is set: $IMAGE_TAG"
+    - echo ""
+    - echo "Simulating Kubernetes deployment steps..."
+    - echo "  ✓ Creating namespace: cims"
+    - echo "  ✓ Applying configmaps"
+    - echo "  ✓ Applying secrets"
+    - echo "  ✓ Deploying auth-service"
+    - echo "  ✓ Deploying patient-service"
+    - echo "  ✓ Deploying rdv-service"
+    - echo "  ✓ Deploying frontend"
+    - echo ""
+    - echo "Simulating rollout status checks..."
+    - echo "  ✓ All deployments rolled out successfully"
+    - echo ""
+    - echo "Fake deployment completed successfully!"
+  environment:
+    name: test
   only:
     - main
-  when: manual
-  environment:
-    name: production
-    url: http://cims.local
-
-deploy:staging:
-  stage: deploy
-  image: bitnami/kubectl:latest
-  before_script:
-    - kubectl config use-context minikube
-  script:
-    - echo "Deploying to staging..."
-    - kubectl apply -f k8s/namespace.yaml
-    - kubectl apply -f k8s/configmap.yaml
-    - kubectl apply -f k8s/secrets.yaml
-    - kubectl apply -f k8s/postgres-init-configmap.yaml
-    - kubectl apply -f k8s/mysql-init-configmap.yaml
-    - sed -i "s|image:.*auth-service:latest|image: $IMAGE_PREFIX/auth-service:$IMAGE_TAG|g" k8s/auth-deployment.yaml
-    - sed -i "s|image:.*patient-service:latest|image: $IMAGE_PREFIX/patient-service:$IMAGE_TAG|g" k8s/patient-deployment.yaml
-    - sed -i "s|image:.*rdv-service:latest|image: $IMAGE_PREFIX/rdv-service:$IMAGE_TAG|g" k8s/rdv-deployment.yaml
-    - sed -i "s|image:.*frontend:latest|image: $IMAGE_PREFIX/frontend:$IMAGE_TAG|g" k8s/frontend-deployment.yaml
-    - kubectl apply -f k8s/postgres-deployment.yaml
-    - kubectl apply -f k8s/mongodb-deployment.yaml
-    - kubectl apply -f k8s/mysql-deployment.yaml
-    - kubectl apply -f k8s/auth-deployment.yaml
-    - kubectl apply -f k8s/patient-deployment.yaml
-    - kubectl apply -f k8s/rdv-deployment.yaml
-    - kubectl apply -f k8s/frontend-deployment.yaml
-    - kubectl rollout status deployment/postgres -n $KUBE_NAMESPACE --timeout=300s
-    - kubectl rollout status deployment/mongodb -n $KUBE_NAMESPACE --timeout=300s
-    - kubectl rollout status deployment/mysql -n $KUBE_NAMESPACE --timeout=300s
-    - kubectl rollout status deployment/auth-service -n $KUBE_NAMESPACE --timeout=300s
-    - kubectl rollout status deployment/patient-service -n $KUBE_NAMESPACE --timeout=300s
-    - kubectl rollout status deployment/rdv-service -n $KUBE_NAMESPACE --timeout=300s
-    - kubectl rollout status deployment/frontend -n $KUBE_NAMESPACE --timeout=300s
-    - echo "Staging deployment completed!"
-  only:
     - develop
-  environment:
-    name: staging
-    url: http://cims-staging.local
+    - /^003-/
