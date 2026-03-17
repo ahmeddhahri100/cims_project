@@ -9,7 +9,7 @@ COPY . .
 RUN npm prune --production
 
 # Production stage
-FROM node:18-alpine
+FROM node:18-alpine AS production
 
 WORKDIR /app
 COPY --from=builder /app/node_modules ./node_modules
