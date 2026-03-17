@@ -62,10 +62,9 @@ test:auth:
   artifacts:
     reports:
       junit: junit.xml
-    coverage:
-      cobertura: coverage/cobertura-coverage.xml
     paths:
       - coverage/
+  coverage: '/All files\s+\|.*\s+([\d.]+)%/'
   only:
     - main
     - develop
@@ -81,10 +80,9 @@ test:patient:
   artifacts:
     reports:
       junit: junit.xml
-    coverage:
-      cobertura: coverage/cobertura-coverage.xml
     paths:
       - coverage/
+  coverage: '/All files\s+\|.*\s+([\d.]+)%/'
   only:
     - main
     - develop
@@ -101,10 +99,9 @@ test:rdv:
   artifacts:
     reports:
       junit: junit.xml
-    coverage:
-      cobertura: coverage.xml
     paths:
       - htmlcov/
+  coverage: '/TOTAL\s+\|.*\s+([\d]+%)/'
   only:
     - main
     - develop
@@ -140,8 +137,6 @@ semgrep:
     - if: $CI_COMMIT_BRANCH =~ /^003-/  # scan on feature branches for testing
   variables:
     SEMGREP_APP_TOKEN: $SEMGREP_APP_TOKEN
-  rules:
-    - if: $CI_COMMIT_BRANCH
 
 # ------------------------------------------------
 # DEPLOY STAGE (TEST ONLY)
