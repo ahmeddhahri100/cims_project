@@ -140,41 +140,16 @@ semgrep:
     - if: $CI_COMMIT_BRANCH =~ /^003-/  # scan on feature branches for testing
   variables:
     SEMGREP_APP_TOKEN: $SEMGREP_APP_TOKEN
+  rules:
+    - if: $CI_COMMIT_BRANCH
 
 # ------------------------------------------------
-# DEPLOY STAGE (FAKE DEPLOYMENT TEST)
+# DEPLOY STAGE (TEST ONLY)
 # ------------------------------------------------
 deploy:test:
   stage: deploy
-  image: alpine:latest
   script:
-    - echo "Starting fake deployment test..."
-    - echo "Checking built images:"
-    - echo "  AUTH-SERVICE: $IMAGE_PREFIX/auth-service:$IMAGE_TAG"
-    - echo "  PATIENT-SERVICE: $IMAGE_PREFIX/patient-service:$IMAGE_TAG"
-    - echo "  RDV-SERVICE: $IMAGE_PREFIX/rdv-service:$IMAGE_TAG"
-    - echo "  FRONTEND: $IMAGE_PREFIX/frontend:$IMAGE_TAG"
-    - echo ""
-    - echo "Validating image tags..."
-    - if [ -z "$IMAGE_TAG" ]; then echo "ERROR: IMAGE_TAG is empty"; exit 1; fi
-    - echo "  ✓ IMAGE_TAG is set: $IMAGE_TAG"
-    - echo ""
-    - echo "Simulating Kubernetes deployment steps..."
-    - echo "  ✓ Creating namespace: cims"
-    - echo "  ✓ Applying configmaps"
-    - echo "  ✓ Applying secrets"
-    - echo "  ✓ Deploying auth-service"
-    - echo "  ✓ Deploying patient-service"
-    - echo "  ✓ Deploying rdv-service"
-    - echo "  ✓ Deploying frontend"
-    - echo ""
-    - echo "Simulating rollout status checks..."
-    - echo "  ✓ All deployments rolled out successfully"
-    - echo ""
-    - echo "Fake deployment completed successfully!"
+    - echo "Pipeline completed successfully"
+    - echo "Deployment will be added later with Kubernetes"
   environment:
     name: test
-  only:
-    - main
-    - develop
-    - /^003-/
