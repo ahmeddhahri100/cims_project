@@ -127,7 +127,7 @@ test:frontend:
     - /^003-/
 
 # ------------------------------------------------
-# SAST SECURITY (SEMGRP)
+# SAST SECURITY (SEMGREP)
 # ------------------------------------------------
 semgrep:
   stage: security
