@@ -133,7 +133,7 @@ semgrep:
   stage: security
   image: semgrep/semgrep
   script:
-    - semgrep ci --config=.semgrep.yml --sarif --output=semgrep.sarif
+    - semgrep ci --sarif-output=semgrep.sarif
   artifacts:
     reports:
       sast: semgrep.sarif
@@ -142,6 +142,8 @@ semgrep:
     - if: $CI_MERGE_REQUEST_IID  # scan on merge request events
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH  # scan on push events to default branch
     - if: $CI_COMMIT_BRANCH =~ /^003-/  # scan on feature branches for testing
+  variables:
+    SEMGREP_APP_TOKEN: $SEMGREP_APP_TOKEN
 # ------------------------------------------------
 # DEPLOY STAGE (TEST ONLY)
 # ------------------------------------------------
