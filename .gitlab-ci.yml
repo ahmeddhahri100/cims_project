@@ -91,6 +91,13 @@ test:patient:
 test:rdv:
   stage: test
   image: python:3.11
+  services:
+    - name: postgres:15-alpine
+      alias: postgres
+  variables:
+    POSTGRES_DB: cims_rdv
+    POSTGRES_USER: postgres
+    POSTGRES_PASSWORD: devpassword
   script:
     - cd rdv-service
     - pip install -r requirements.txt
