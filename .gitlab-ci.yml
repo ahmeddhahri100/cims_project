@@ -155,3 +155,4 @@ deploy:test:
     - echo "Deployment will be added later with Kubernetes"
   environment:
     name: test
+    
