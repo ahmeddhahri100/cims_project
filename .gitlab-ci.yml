@@ -134,8 +134,7 @@ semgrep:
   image: semgrep/semgrep
   script:
     - export SEMGREP_APP_TOKEN="${SEMGREP_APP_TOKEN}"
-    - semgrep --config=.semgrep.yml --sarif-output=semgrep.sarif .
-    - semgrep push 
+    - semgrep ci --config=.semgrep.yml --sarif-output=semgrep.sarif .
   artifacts:
     reports:
       sast: semgrep.sarif
