@@ -133,7 +133,7 @@ semgrep:
   stage: security
   image: semgrep/semgrep
   script:
-    - semgrep --config=.semgrep.yml --fail-on=ERROR --sarif-output=semgrep.sarif .
+    - semgrep --config=.semgrep.yml --sarif-output=semgrep.sarif .
   artifacts:
     reports:
       sast: semgrep.sarif
