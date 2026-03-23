@@ -1,7 +1,7 @@
 stages:
   - build
   - test
-  - dependency-check
+  - trivy-fs
   - security
   - deploy
 
@@ -131,7 +131,7 @@ test:frontend:
 # TRIVY SCA (SOFTWARE COMPOSITION ANALYSIS)
 # ------------------------------------------------
 .trivy-sca:
-  stage: dependency-check
+  stage: trivy-fs
   image: 
     name: aquasec/trivy:latest
     entrypoint: [""]
@@ -151,19 +151,19 @@ test:frontend:
       - "trivy-*-sca.html"
     when: always
 
-dependency-check:auth:
+trivy-fs:auth:
   extends: .trivy-sca
   variables:
     SERVICE_NAME: auth
     SERVICE_DIR: auth-service
 
-dependency-check:patient:
+trivy-fs:patient:
   extends: .trivy-sca
   variables:
     SERVICE_NAME: patient
     SERVICE_DIR: patient-service
 
-dependency-check:rdv:
+trivy-fs:rdv:
   extends: .trivy-sca
   variables:
     SERVICE_NAME: rdv
