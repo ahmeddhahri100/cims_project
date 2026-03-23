@@ -1,6 +1,7 @@
 stages:
   - build
   - test
+  - dependency-check
   - security
   - deploy
 
@@ -127,6 +128,48 @@ test:frontend:
     - /^003-/
 
 # ------------------------------------------------
+# TRIVY SCA (SOFTWARE COMPOSITION ANALYSIS)
+# ------------------------------------------------
+.trivy-sca:
+  stage: dependency-check
+  image: 
+    name: aquasec/trivy:latest
+    entrypoint: [""]
+  variables:
+    TRIVY_CACHE_DIR: ".trivycache/"
+  cache:
+    paths:
+      - .trivycache/
+  script:
+    - trivy fs --exit-code 0 --severity HIGH,CRITICAL --no-progress --format table ./$SERVICE_DIR
+    - trivy fs --exit-code 0 --severity HIGH,CRITICAL --no-progress --format json -o trivy-$SERVICE_NAME-sca.json ./$SERVICE_DIR
+    - trivy fs --exit-code 0 --severity HIGH,CRITICAL --no-progress --format template --template "@/contrib/html.tpl" -o trivy-$SERVICE_NAME-sca.html ./$SERVICE_DIR
+  allow_failure: true
+  artifacts:
+    paths:
+      - "trivy-*-sca.json"
+      - "trivy-*-sca.html"
+    when: always
+
+dependency-check:auth:
+  extends: .trivy-sca
+  variables:
+    SERVICE_NAME: auth
+    SERVICE_DIR: auth-service
+
+dependency-check:patient:
+  extends: .trivy-sca
+  variables:
+    SERVICE_NAME: patient
+    SERVICE_DIR: patient-service
+
+dependency-check:rdv:
+  extends: .trivy-sca
+  variables:
+    SERVICE_NAME: rdv
+    SERVICE_DIR: rdv-service
+
+# ------------------------------------------------
 # TRIVY CONTAINER SCANNING
 # ------------------------------------------------
 .trivy-scan:
@@ -148,7 +191,7 @@ test:frontend:
     - trivy image --format json -o trivy-$SERVICE_NAME-report.json --severity HIGH,CRITICAL --exit-code 0 --no-progress $SERVICE_NAME:$CI_COMMIT_SHORT_SHA
   artifacts:
     paths:
-      - trivy-$SERVICE_NAME-report.json
+      - "trivy-*.json"
     when: always
 
 trivy:auth:
