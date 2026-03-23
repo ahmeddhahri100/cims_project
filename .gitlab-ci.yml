@@ -229,13 +229,48 @@ semgrep:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH  # scan on push events to default branch
     - if: $CI_COMMIT_BRANCH =~ /^003-/  # scan on feature branches for testing
 # ------------------------------------------------
-# DEPLOY STAGE (TEST ONLY)
+# DEPLOY STAGE (MINIKUBE / K8S)
 # ------------------------------------------------
-deploy:test:
+deploy:minikube:
   stage: deploy
+  image: 
+    name: bitnami/kubectl:latest
+    entrypoint: [""]
+  variables:
+    # Use the registry image and the commit sha for the manifests
+    IMAGE_PREFIX: $CI_REGISTRY_IMAGE
+    IMAGE_TAG: $CI_COMMIT_SHORT_SHA
   script:
-    - echo "Pipeline completed successfully"
-    - echo "Deployment will be added later with Kubernetes"
+    - echo "Deploying to Minikube..."
+    # Check if KUBECONFIG is provided
+    - if [ -z "$KUBECONFIG" ]; then echo "❌ ERROR - KUBECONFIG variable is not set" && exit 1; fi
+    
+    # 1. Create namespace if it doesn't exist
+    - kubectl create namespace cims --dry-run=client -o yaml | kubectl apply -f -
+    
+    # 2. Apply ConfigMaps and Secrets first
+    - envsubst < k8s/configmap.yaml | kubectl apply -f -
+    - envsubst < k8s/secrets.yaml | kubectl apply -f -
+    - envsubst < k8s/postgres-init-configmap.yaml | kubectl apply -f -
+    - envsubst < k8s/mysql-init-configmap.yaml | kubectl apply -f -
+    
+    # 3. Apply Base Deployments (Databases)
+    - envsubst < k8s/postgres-deployment.yaml | kubectl apply -f -
+    - envsubst < k8s/mysql-deployment.yaml | kubectl apply -f -
+    - envsubst < k8s/mongodb-deployment.yaml | kubectl apply -f -
+    
+    # 4. Apply Microservices
+    - envsubst < k8s/auth-deployment.yaml | kubectl apply -f -
+    - envsubst < k8s/patient-deployment.yaml | kubectl apply -f -
+    - envsubst < k8s/rdv-deployment.yaml | kubectl apply -f -
+    - envsubst < k8s/frontend-deployment.yaml | kubectl apply -f -
+    
+    # 5. Verify Rollout
+    - kubectl rollout status deployment/auth-service -n cims --timeout=120s
+    - echo "✅ Deployment to Minikube successful!"
   environment:
-    name: test
+    name: minikube
+  only:
+    - develop
+    - main
   

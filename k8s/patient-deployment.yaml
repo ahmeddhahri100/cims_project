@@ -19,8 +19,8 @@ spec:
     spec:
       containers:
       - name: patient-service
-        image: registry.gitlab.com/YOUR_USERNAME/cims-microservice/patient-service:latest
-        imagePullPolicy: Always
+        image: ${IMAGE_PREFIX}/patient-service:${IMAGE_TAG}
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 3002
           name: http

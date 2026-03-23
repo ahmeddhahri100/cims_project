@@ -19,8 +19,8 @@ spec:
     spec:
       containers:
       - name: frontend
-        image: registry.gitlab.com/YOUR_USERNAME/cims-microservice/frontend:latest
-        imagePullPolicy: Always
+        image: ${IMAGE_PREFIX}/frontend:${IMAGE_TAG}
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 80
           name: http

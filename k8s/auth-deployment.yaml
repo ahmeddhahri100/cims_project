@@ -19,8 +19,8 @@ spec:
     spec:
       containers:
       - name: auth-service
-        image: registry.gitlab.com/YOUR_USERNAME/cims-microservice/auth-service:latest
-        imagePullPolicy: Always
+        image: ${IMAGE_PREFIX}/auth-service:${IMAGE_TAG}
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 3001
           name: http

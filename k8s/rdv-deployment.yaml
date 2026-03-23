@@ -19,8 +19,8 @@ spec:
     spec:
       containers:
       - name: rdv-service
-        image: registry.gitlab.com/YOUR_USERNAME/cims-microservice/rdv-service:latest
-        imagePullPolicy: Always
+        image: ${IMAGE_PREFIX}/rdv-service:${IMAGE_TAG}
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 3003
           name: http
