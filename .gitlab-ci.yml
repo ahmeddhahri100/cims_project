@@ -133,7 +133,7 @@ test:frontend:
 .trivy-sca:
   stage: trivy-fs
   image: 
-    name: aquasec/trivy:latest
+    name: ghcr.io/aquasecurity/trivy:0.49.1
     entrypoint: [""]
   variables:
     TRIVY_CACHE_DIR: ".trivycache/"
