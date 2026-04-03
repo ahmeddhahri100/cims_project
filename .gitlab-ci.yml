@@ -273,4 +273,5 @@ deploy:minikube:
   only:
     - develop
     - main
+    
   
