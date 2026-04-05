@@ -85,32 +85,32 @@ services:
     networks:
       - cims-net
 
-  ollama:
-    image: ollama/ollama:latest
-    container_name: cims-ollama
-    restart: unless-stopped
-    volumes:
-      - ollama_data:/root/.ollama
-    ports:
-      - "11434:11434"
-    networks:
-      - cims-net
+  #ollama:
+   # image: ollama/ollama:latest
+    #container_name: cims-ollama
+    #restart: unless-stopped
+    #volumes:
+    #- ollama_data:/root/.ollama
+    #ports:
+    #- "11434:11434"
+    #networks:
+    #- cims-net
 
-  n8n:
-    image: n8nio/n8n:latest
-    container_name: cims-n8n
-    restart: unless-stopped
-    ports:
-      - "5678:5678"
-    environment:
-      - N8N_HOST=localhost
-      - N8N_PORT=5678
-      - N8N_PROTOCOL=http
-      - NODE_FUNCTION_ALLOW_EXTERNAL=jwt-decode
-    volumes:
-      - n8n_data:/home/node/.n8n
-    networks:
-      - cims-net
+  #n8n:
+    #image: n8nio/n8n:latest
+    #container_name: cims-n8n
+    #restart: unless-stopped
+    #ports:
+      #- "5678:5678"
+    #environment:
+      #- N8N_HOST=localhost
+      #- N8N_PORT=5678
+      #- N8N_PROTOCOL=http
+      #- NODE_FUNCTION_ALLOW_EXTERNAL=jwt-decode
+    #volumes:
+      #- n8n_data:/home/node/.n8n
+    #networks:
+      #- cims-net
 
   # ─────────────────────────────────────────────
   # MICROSERVICES
@@ -224,8 +224,8 @@ volumes:
   postgres_auth_data:
   mongo_patient_data:
   mysql_rdv_data:
-  ollama_data:
-  n8n_data:
+  #ollama_data:
+  #n8n_data:
 
 networks:
   cims-net:
