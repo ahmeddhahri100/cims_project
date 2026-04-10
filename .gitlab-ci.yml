@@ -213,7 +213,7 @@ trivy:rdv:
     SERVICE_DIR: rdv-service
 
 # ------------------------------------------------
-# SAST SECURITY (SEMGREP)
+# SAST SECURITY (SEMGREP + OWASP ZAP)
 # ------------------------------------------------
 semgrep:
   stage: security
@@ -224,10 +224,49 @@ semgrep:
     reports:
       sast: semgrep.sarif
   rules:
-    - if: $CI_PIPELINE_SOURCE == "web"  # allow triggering a scan manually from the gitlab UI
-    - if: $CI_MERGE_REQUEST_IID  # scan on merge request events
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH  # scan on push events to default branch
-    - if: $CI_COMMIT_BRANCH =~ /^003-/  # scan on feature branches for testing
+    - if: $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_MERGE_REQUEST_IID
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_BRANCH =~ /^003-/
+
+# OWASP ZAP Baseline Scan - runs on every pipeline
+owasp:baseline:
+  stage: security
+  image: owasp/zap2docker-stable
+  script:
+    - zap-baseline.py -t $ZAP_TARGET_URL -J zap-baseline.json -r zap-baseline-report.html
+  artifacts:
+    reports:
+      sast: zap-baseline.json
+    paths:
+      - zap-baseline-report.html
+  variables:
+    ZAP_TARGET_URL: "http://192.168.49.2:30080"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_MERGE_REQUEST_IID
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_BRANCH =~ /^003-/
+
+# OWASP ZAP Active Scan - runs once a month via schedule
+owasp:active:
+  stage: security
+  image: owasp/zap2docker-stable
+  script:
+    - zap-full-scan.py -t $ZAP_TARGET_URL -J zap-active.json -r zap-active-report.html
+  artifacts:
+    reports:
+      sast: zap-active.json
+    paths:
+      - zap-active-report.html
+  variables:
+    ZAP_TARGET_URL: "http://192.168.49.2:30080"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_SCHEDULE == "Monthly Active Scan"
+  only:
+    - schedules
+
 # ------------------------------------------------
 # DEPLOY STAGE (MINIKUBE / K8S)
 # ------------------------------------------------
