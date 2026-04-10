@@ -261,9 +261,6 @@ owasp:active:
       - zap-active-report.html
   variables:
     ZAP_TARGET_URL: "http://192.168.49.2:30080"
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_SCHEDULE == "Monthly Active Scan"
   only:
     - schedules
 
