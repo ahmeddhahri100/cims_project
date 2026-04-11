@@ -244,7 +244,7 @@ semgrep:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     - if: $CI_COMMIT_BRANCH =~ /^003-/
 
-# OWASP ZAP Baseline Scan - runs on every pipeline
+# OWASP ZAP Baseline Scan - runs on schedule (manual trigger)
 owasp:baseline:
   stage: security
   image: registry.gitlab.com/cims/microservice/zap-fixed:latest
@@ -262,30 +262,6 @@ owasp:baseline:
     paths:
       - zap-baseline-report.html
       - zap-baseline.json
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "web"
-    - if: $CI_MERGE_REQUEST_IID
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-    - if: $CI_COMMIT_BRANCH =~ /^003-/
-
-# OWASP ZAP Active Scan - runs once a month via schedule
-owasp:active:
-  stage: security
-  image: registry.gitlab.com/cims/microservice/zap-fixed:latest
-  needs:
-    - build:zap-fixed
-  variables:
-    ZAP_TARGET_URL: "http://192.168.49.2:30080"
-  script:
-    - zap-full-scan.py -t $ZAP_TARGET_URL -J zap-active.json -r zap-active-report.html
-    - cp /zap/wrk/zap-active.json .
-    - cp /zap/wrk/zap-active-report.html .
-  artifacts:
-    reports:
-      sast: zap-active.json
-    paths:
-      - zap-active-report.html
-      - zap-active.json
   only:
     - schedules
 
