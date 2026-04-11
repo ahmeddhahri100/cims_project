@@ -232,7 +232,7 @@ semgrep:
 # OWASP ZAP Baseline Scan - runs on every pipeline
 owasp:baseline:
   stage: security
-  image: zaproxy/zap2docker-stable
+  image: registry.gitlab.com/cims/microservice/zap-stable:latest
   script:
     - zap-baseline.py -t $ZAP_TARGET_URL -J zap-baseline.json -r zap-baseline-report.html
   artifacts:
@@ -251,7 +251,7 @@ owasp:baseline:
 # OWASP ZAP Active Scan - runs once a month via schedule
 owasp:active:
   stage: security
-  image: zaproxy/zap2docker-stable
+  image: registry.gitlab.com/cims/microservice/zap-stable:latest
   script:
     - zap-full-scan.py -t $ZAP_TARGET_URL -J zap-active.json -r zap-active-report.html
   artifacts:
