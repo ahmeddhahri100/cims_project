@@ -2,7 +2,6 @@ stages:
   - build
   - test
   - trivy-fs
-  - build-zap
   - security
   - deploy
 
@@ -50,20 +49,6 @@ build:frontend:
   script:
     - docker build --target production -t $IMAGE_PREFIX/frontend:$IMAGE_TAG ./frontend
     - docker push $IMAGE_PREFIX/frontend:$IMAGE_TAG
-
-# ------------------------------------------------
-# BUILD CUSTOM ZAP IMAGE
-# ------------------------------------------------
-build:zap-fixed:
-  stage: build-zap
-  extends: .docker-login
-  script:
-    - docker build -t $IMAGE_PREFIX/zap-fixed:latest ./zap-docker
-    - docker push $IMAGE_PREFIX/zap-fixed:latest
-  only:
-    - main
-    - develop
-    - /^003-/
 
 # ------------------------------------------------
 # TEST STAGE
@@ -244,24 +229,19 @@ semgrep:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     - if: $CI_COMMIT_BRANCH =~ /^003-/
 
-# OWASP ZAP Baseline Scan - runs on schedule (manual trigger)
+# OWASP ZAP Baseline Scan - runs on schedule
 owasp:baseline:
   stage: security
-  image: registry.gitlab.com/cims/microservice/zap-fixed:latest
-  needs:
-    - build:zap-fixed
-  variables:
-    ZAP_TARGET_URL: "http://192.168.49.2:30080"
+  image: registry.gitlab.com/cims/microservice/zap-stable:latest
   script:
     - zap-baseline.py -t $ZAP_TARGET_URL -J zap-baseline.json -r zap-baseline-report.html
-    - cp /zap/wrk/zap-baseline.json .
-    - cp /zap/wrk/zap-baseline-report.html .
   artifacts:
     reports:
       sast: zap-baseline.json
     paths:
       - zap-baseline-report.html
-      - zap-baseline.json
+  variables:
+    ZAP_TARGET_URL: "http://192.168.49.2:30080"
   only:
     - schedules
 
