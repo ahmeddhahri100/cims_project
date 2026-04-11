@@ -233,15 +233,21 @@ semgrep:
 owasp:baseline:
   stage: security
   image: registry.gitlab.com/cims/microservice/zap-stable:latest
+  variables:
+    ZAP_TARGET_URL: "http://192.168.49.2:30080"
+    ZAP_BASE_DIR: /tmp/zap
+  before_script:
+    - mkdir -p $ZAP_BASE_DIR
   script:
     - zap-baseline.py -t $ZAP_TARGET_URL -J zap-baseline.json -r zap-baseline-report.html
+    - cp $ZAP_BASE_DIR/zap-baseline.json .
+    - cp $ZAP_BASE_DIR/zap-baseline-report.html .
   artifacts:
     reports:
       sast: zap-baseline.json
     paths:
       - zap-baseline-report.html
-  variables:
-    ZAP_TARGET_URL: "http://192.168.49.2:30080"
+      - zap-baseline.json
   rules:
     - if: $CI_PIPELINE_SOURCE == "web"
     - if: $CI_MERGE_REQUEST_IID
@@ -252,15 +258,21 @@ owasp:baseline:
 owasp:active:
   stage: security
   image: registry.gitlab.com/cims/microservice/zap-stable:latest
+  variables:
+    ZAP_TARGET_URL: "http://192.168.49.2:30080"
+    ZAP_BASE_DIR: /tmp/zap
+  before_script:
+    - mkdir -p $ZAP_BASE_DIR
   script:
     - zap-full-scan.py -t $ZAP_TARGET_URL -J zap-active.json -r zap-active-report.html
+    - cp $ZAP_BASE_DIR/zap-active.json .
+    - cp $ZAP_BASE_DIR/zap-active-report.html .
   artifacts:
     reports:
       sast: zap-active.json
     paths:
       - zap-active-report.html
-  variables:
-    ZAP_TARGET_URL: "http://192.168.49.2:30080"
+      - zap-active.json
   only:
     - schedules
 
