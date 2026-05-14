@@ -1,95 +1,147 @@
 # CIMS - Clinical Information Management System
 
-Système d'information de santé basé sur une architecture microservices.
+Système d'information de santé basé sur une architecture microservices polyglotte.
 
-## 🏗️ Architecture
+## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                          CLIENT                                  │
-│                     (React Frontend)                            │
-│                       Port: 3004                                │
-└──────────────────────┬──────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│                            CLIENT                                       │
+│                       (React Frontend)                                  │
+│                         Port: 3004                                      │
+│                    Servi par Nginx (reverse proxy)                       │
+└──────────────────────┬──────────────────────────────────────────────────┘
                        │
                        ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    MICROSERVICES                                 │
-│                                                                  │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐             │
-│  │   AUTH      │  │  PATIENT    │  │    RDV      │             │
-│  │  SERVICE    │  │  SERVICE    │  │  SERVICE    │             │
-│  │   :3001     │  │   :3002     │  │   :3003     │             │
-│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘             │
-│         │                │                │                      │
-│         └────────────────┼────────────────┘                      │
-│                          │                                       │
-│                          ▼                                       │
-│                  ┌──────────────┐                               │
-│                  │   POSTGRES   │                               │
-│                  │    :5432     │                               │
-│                  │              │                               │
-│                  │ • cims_auth  │                               │
-│                  │ • cims_patients│                              │
-│                  │ • cims_rdv   │                               │
-│                  └──────────────┘                               │
-└─────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│                          MICROSERVICES                                   │
+│                                                                          │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐                  │
+│  │    AUTH      │  │   PATIENT    │  │     RDV      │                  │
+│  │   SERVICE    │  │   SERVICE    │  │   SERVICE    │                  │
+│  │   Node.js    │  │   Node.js    │  │  Python/FastAPI│                 │
+│  │    :3001     │  │    :3002     │  │    :3003     │                  │
+│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘                  │
+│         │                 │                  │                           │
+│         └─────────────────┼──────────────────┘                           │
+│                           │                                              │
+│                           ▼                                              │
+│  ┌──────────────┐ ┌────────────┐ ┌──────────────┐                     │
+│  │  PostgreSQL  │ │  MongoDB   │ │    MySQL     │                     │
+│  │  cims_auth   │ │cims_patients│ │  cims_rdv    │                     │
+│  │    :5433     │ │  :27017    │ │    :3306     │                     │
+│  └──────────────┘ └────────────┘ └──────────────┘                     │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
-## 📋 Services
+**Principe**: Chaque microservice possède sa propre base de dédiée (database-per-service pattern).
+
+## Services
 
 ### 1. Auth Service (Port 3001)
-- **Technologie**: Node.js + Express
-- **Base de données**: PostgreSQL (cims_auth)
+- **Technologie**: Node.js 18 + Express
+- **Base de données**: PostgreSQL 16 (cims_auth)
 - **Responsabilités**:
   - Authentification (login/register)
-  - Génération et vérification JWT
+  - Génération et vérification JWT (expiration 24h)
   - Gestion des utilisateurs (patient, doctor, admin)
 
 **Endpoints**:
-- `POST /api/auth/login` - Connexion
-- `POST /api/auth/register` - Inscription
-- `POST /api/auth/verify` - Vérification token (utilisé par les autres services)
-- `GET /api/auth/me` - Profil utilisateur
+| Méthode | Path | Description |
+|---------|------|-------------|
+| POST | `/api/auth/register` | Inscription |
+| POST | `/api/auth/login` | Connexion (retourne JWT) |
+| POST | `/api/auth/verify` | Vérification token (inter-services) |
+| GET | `/api/auth/me` | Profil utilisateur courant |
+
+**Dépendances**: `express`, `bcryptjs` (10 rounds), `jsonwebtoken`, `pg`, `cors`
 
 ### 2. Patient Service (Port 3002)
-- **Technologie**: Node.js + Express
-- **Base de données**: PostgreSQL (cims_patients)
+- **Technologie**: Node.js 18 + Express
+- **Base de données**: MongoDB 6.0 (cims_patients)
 - **Responsabilités**:
   - Gestion des dossiers patients
   - CRUD patients (réservé aux doctors/admins)
+  - Synchronisation automatique des profils après inscription
 
 **Endpoints**:
-- `GET /api/patients` - Liste des patients (doctor/admin)
-- `GET /api/patients/:id` - Détail patient
-- `POST /api/patients` - Créer patient (doctor/admin)
-- `PUT /api/patients/:id` - Modifier patient (doctor/admin)
-- `DELETE /api/patients/:id` - Supprimer patient (admin)
+| Méthode | Path | Accès |
+|---------|------|-------|
+| GET | `/api/patients` | Liste des patients (doctor/admin) |
+| GET | `/api/patients/profile` | Profil du patient connecté |
+| GET | `/api/patients/:id` | Détail patient |
+| POST | `/api/patients` | Créer patient (doctor/admin) |
+| POST | `/api/patients/sync-profile` | Création automatique post-inscription |
+| PUT | `/api/patients/:id` | Modifier patient (doctor/admin) |
+| DELETE | `/api/patients/:id` | Supprimer patient (admin) |
+
+**Auth**: Middleware appelant `/api/auth/verify` sur l'Auth Service.
 
 ### 3. RDV Service (Port 3003)
-- **Technologie**: Python + FastAPI
-- **Base de données**: PostgreSQL (cims_rdv)
+- **Technologie**: Python 3.11 + FastAPI + SQLAlchemy
+- **Base de données**: MySQL 8.0 (cims_rdv)
 - **Responsabilités**:
   - Gestion des rendez-vous
   - Gestion des médecins
+  - Documentation Swagger auto-générée sur `/docs`
 
 **Endpoints**:
-- `GET /api/rdv` - Tous les rendez-vous (doctor/admin)
-- `GET /api/rdv/my` - Mes rendez-vous (patient)
-- `POST /api/rdv` - Créer rendez-vous
-- `POST /api/rdv/:id/cancel` - Annuler rendez-vous
-- `GET /api/rdv/doctors` - Liste des médecins
+| Méthode | Path | Description |
+|---------|------|-------------|
+| GET | `/api/rdv/doctors` | Liste des médecins |
+| POST | `/api/rdv/doctors/seed` | Initialiser docteurs (admin) |
+| POST | `/api/rdv` | Créer rendez-vous |
+| GET | `/api/rdv/my` | Mes rendez-vous (patient) |
+| GET | `/api/rdv` | Tous les RDV (doctor/admin) |
+| GET | `/api/rdv/:id` | Détail rendez-vous |
+| POST | `/api/rdv/:id/cancel` | Annuler rendez-vous |
+| PATCH | `/api/rdv/:id/status` | Mettre à jour statut (doctor/admin) |
+| GET | `/api/rdv/patients` | Recherche patients (proxy patient-service) |
+| GET | `/api/rdv/patients/:id` | Détail patient (proxy patient-service) |
+
+**Auth**: HTTPBearer + vérification via `httpx.AsyncClient` vers Auth Service.
 
 ### 4. Frontend (Port 3004)
-- **Technologie**: React + Vite
-- **Style**: CIMS Theme (bleu professionnel)
+- **Technologie**: React 18 + Vite 5 + React Router 6
+- **Serveur de prod**: Nginx (reverse proxy vers les APIs)
+- **Style**: CIMS Theme (bleu professionnel `#1e5f8e`, teal `#0d9488`)
+- **State**: localStorage (clés `cims_token`, `cims_user`)
 - **Pages**:
-  - Login/Register
-  - Profil utilisateur
-  - Gestion rendez-vous
+  - `/` — Page de connexion
+  - `/register` — Inscription
+  - `/profile` — Profil utilisateur (protégé)
+  - `/appointments` — Gestion des rendez-vous (protégé)
+  - `/calendar` — Vue calendrier (protégé)
 
-## 🔐 Architecture de Sécurité
+**Proxy Nginx**:
+| Path | Cible |
+|------|-------|
+| `/api/auth` | `http://auth-service:3001` |
+| `/api/patients` | `http://patient-service:3002` |
+| `/api/rdv` | `http://rdv-service:3003` |
 
-### Authentification
+## Tech Stack
+
+| Composant | Technologie |
+|-----------|-------------|
+| Auth Service | Node.js 18, Express, JWT, bcrypt |
+| Patient Service | Node.js 18, Express |
+| RDV Service | Python 3.11, FastAPI, SQLAlchemy |
+| Frontend | React 18, Vite 5, React Router 6 |
+| Auth DB | PostgreSQL 16 (Alpine) |
+| Patient DB | MongoDB 6.0 |
+| RDV DB | MySQL 8.0 |
+| Conteneurisation | Docker, Docker Compose |
+| Orquestration | Kubernetes (Minikube) |
+| CI/CD | GitLab CI |
+| SAST | Semgrep |
+| SCA | Trivy |
+| DAST | OWASP ZAP |
+| Logging | Filebeat → Elasticsearch |
+| SSO (optionnel) | Keycloak 24.0 |
+
+## Sécurité
+
 1. **Auth Service** génère les tokens JWT
 2. **Patient Service** et **RDV Service** vérifient les tokens via l'endpoint `/api/auth/verify`
 3. Chaque service gère ses propres autorisations basées sur les rôles
@@ -101,19 +153,30 @@ Client → [Autres Services] + Token dans Header Authorization
 [Autres Services] → Auth Service (verify) → Validation
 ```
 
-## 🚀 Démarrage
+### Rôles et Permissions
+
+| Rôle | Permissions |
+|------|-------------|
+| **patient** | Voir son profil, créer/annuler ses RDV |
+| **doctor** | Voir tous les patients, tous les RDV, confirmer/modifier RDV |
+| **admin** | Toutes les permissions doctor + supprimer patients/modifier statuts |
+
+### Network Policies (K8s)
+- PostgreSQL accessible uniquement depuis auth/patient/rdv pods
+- Auth Service accessible uniquement depuis frontend/patient/rdv
+- Audit logging au niveau RequestResponse
+
+## Démarrage
 
 ### Prérequis
 - Docker & Docker Compose
-- Node.js (pour développement local)
+- Node.js 18+ (pour développement local)
 - Python 3.11+ (pour rdv-service)
+- Minikube (pour déploiement K8s)
 
-### Lancement complet
+### Lancement complet (Docker Compose)
 
 ```bash
-# Cloner le projet
-cd /data/project_PFE/cims-microservice
-
 # Lancer tous les services
 sudo docker compose up --build -d
 
@@ -129,64 +192,16 @@ sudo docker compose logs -f [service-name]
 - **Auth API**: http://localhost:3001
 - **Patient API**: http://localhost:3002
 - **RDV API**: http://localhost:3003
-- **PostgreSQL**: localhost:5432
+- **Swagger (RDV)**: http://localhost:3003/docs
+- **PostgreSQL**: localhost:5433
+- **MongoDB**: localhost:27017
+- **MySQL**: localhost:3306
 
-## 🗄️ Structure de la Base de Données
-
-### cims_auth (Auth Service)
-```sql
-users:
-  - id (PK)
-  - email (unique)
-  - password (hash)
-  - first_name
-  - last_name
-  - role (patient/doctor/admin)
-  - created_at
-  - last_login
-```
-
-### cims_patients (Patient Service)
-```sql
-patients:
-  - id (PK)
-  - first_name
-  - last_name
-  - email
-  - phone
-  - date_of_birth
-  - blood_type
-  - address
-  - created_at
-```
-
-### cims_rdv (RDV Service)
-```sql
-appointments:
-  - id (PK)
-  - patient_id
-  - doctor_id
-  - appointment_date
-  - reason
-  - notes
-  - status (pending/confirmed/cancelled/completed)
-  - created_at
-
-doctors:
-  - id (PK)
-  - name
-  - speciality
-  - email
-  - phone
-  - created_at
-```
-
-## 📝 Commandes utiles
+### Commandes utiles
 
 ```bash
 # Rebuild tous les services
-sudo docker compose down
-sudo docker compose up --build -d
+sudo docker compose down && sudo docker compose up --build -d
 
 # Logs d'un service spécifique
 sudo docker compose logs -f auth-service
@@ -209,39 +224,121 @@ curl http://localhost:3002/health
 curl http://localhost:3003/health
 ```
 
-## 🔧 Configuration
+## Déploiement Kubernetes
+
+```bash
+# Déploiement automatisé (Minikube)
+cd k8s && ./deploy-minikube.sh
+```
+
+24 manifests K8s organisés en:
+- **Infrastructure**: Namespace, ConfigMap, Secrets, ResourceQuota
+- **Bases de données**: PostgreSQL, MySQL, MongoDB (StatefulSets + PVC)
+- **Microservices**: auth, patient, rdv, frontend (Deployment + NodePort Service)
+- **Réseau**: Ingress (Nginx), NetworkPolicy
+- **Scaling**: HPA (auto-scaling 1-5 pods selon CPU/mémoire)
+- **Monitoring**: Filebeat DaemonSet (logs → Elasticsearch)
+- **Sécurité**: Audit logging, RBAC (n8n read-only)
+
+### NodePorts
+
+| Service | Port | NodePort |
+|---------|------|----------|
+| auth-service | 3001 | 30081 |
+| patient-service | 3002 | 30082 |
+| rdv-service | 3003 | 30083 |
+| frontend | 80 | 30080 |
+
+## Base de Données
+
+### Initialisation
+Le script `docker/postgres/init.sql` initialise les 3 bases avec leurs schémas et insère 5 médecins  par défaut:
+
+| Médecin | Spécialité |
+|---------|------------|
+| Dr. Sana Mansour | Cardiologie |
+| Dr. Karim Trabelsi | Pédiatrie |
+| Dr. Leila Gharbi | Neurologie |
+| Dr. Mounir Belhaj | Dermatologie |
+| Dr. Ines Sfar | Gynécologie |
+
+### Schémas
+
+**cims_auth** (PostgreSQL — Auth Service)
+```sql
+users (id, email, password, first_name, last_name, role, created_at, last_login)
+```
+
+**cims_patients** (MongoDB — Patient Service)
+```
+patients (id, first_name, last_name, email, phone, date_of_birth, blood_type, address, created_at)
+```
+
+**cims_rdv** (MySQL — RDV Service)
+```sql
+appointments (id, patient_id, doctor_id, appointment_date, reason, notes, status)
+doctors (id, name, speciality, email, phone, created_at)
+```
+
+## Configuration
 
 ### Variables d'environnement
-
-Chaque service a son fichier `.env`:
 
 **auth-service/.env**:
 ```
 PORT=3001
 JWT_SECRET=votre_secret_jwt
+DB_HOST=postgres-auth
+DB_USER=postgres
+DB_PASSWORD=devpassword
+DB_NAME=cims_auth
 ```
 
 **patient-service/.env**:
 ```
 PORT=3002
 AUTH_SERVICE_URL=http://auth-service:3001
+MONGO_URI=mongodb://mongodb-patient:27017/cims_patients
 ```
 
 **rdv-service/.env**:
 ```
 PORT=3003
 AUTH_SERVICE_URL=http://auth-service:3001
+DATABASE_URL=mysql://user:password@mysql-rdv:3306/cims_rdv
 ```
 
-## 🎨 Design System
+**K8s**: ConfigMap + Secrets centralisés dans `k8s/configmap.yaml` et `k8s/secrets.yaml`.
 
-Le frontend utilise le **thème CIMS**:
-- **Couleur primaire**: `#1e5f8e` (bleu professionnel)
-- **Couleur secondaire**: `#0d9488` (teal)
-- **Police**: Segoe UI, system fonts
-- **Style**: Moderne, professionnel, inspiré de www.cims.tn
+## CI/CD Pipeline
 
-## 🧪 Test de l'intégration
+Le pipeline GitLab CI (`.gitlab-ci.yml`) comprend 5 étages:
+
+| Stage | Description |
+|-------|-------------|
+| **build** | Docker build + push des 4 services (multi-stage) |
+| **test** | Tests unitaires (npm test, pytest) + build frontend |
+| **trivy-fs** | Scan SCA des vulnérabilités (HIGH/CRITICAL) |
+| **security** | Semgrep (SAST), Trivy (image scan), OWASP ZAP (DAST planifié) |
+| **deploy** | Déploiement automatique sur Minikube via kubectl |
+
+## Security Scanning
+
+### SAST (Semgrep)
+```bash
+./pipeline/scan-sast.sh
+```
+- Règles personnalisées (Python + JavaScript): SQL injection, secrets, exec/eval
+- Sortie SARIF consultable dans VS Code (SARIF Viewer) ou GitHub Code Scanning
+
+### SCA (Trivy)
+- Scan des images Docker et du filesystem
+- Seuil: HIGH et CRITICAL
+
+### DAST (OWASP ZAP)
+- Scan baseline planifié (GitLab schedules)
+
+## Test de l'intégration
 
 ### 1. Créer un compte
 ```bash
@@ -272,96 +369,43 @@ curl -X POST http://localhost:3003/api/rdv \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <token>" \
   -d '{
-    "doctor_id": "dr-001",
+    "doctor_id": 1,
     "appointment_date": "2025-02-20T10:00:00",
     "reason": "Consultation générale"
   }'
 ```
 
-## 📚 Documentation API
+## Dépannage
 
-### Auth Service
-- Swagger: Non disponible (Express)
-- Documentation: Voir `auth-service/auth.js`
-
-### RDV Service
-- Swagger: http://localhost:3003/docs (FastAPI auto-généré)
-- OpenAPI: http://localhost:3003/openapi.json
-
-## 🐛 Dépannage
-
-### Problème: "Cannot find module"
-**Solution**: Rebuild le service concerné
+### "Cannot find module"
 ```bash
 sudo docker compose build --no-cache [service-name]
 sudo docker compose up -d [service-name]
 ```
 
-### Problème: "Service auth indisponible"
-**Solution**: Vérifier que auth-service est démarré
+### "Service auth indisponible"
 ```bash
 sudo docker compose ps
 sudo docker compose logs auth-service
 ```
 
-### Problème: Erreur 403 sur les routes protégées
-**Solution**: Vérifier le token JWT et les rôles
+### Erreur 403 sur les routes protégées
 ```bash
-# Vérifier le token
 curl -X POST http://localhost:3001/api/auth/verify \
   -H "Authorization: Bearer <token>"
 ```
 
-## 👥 Rôles et Permissions
+## Fonctionnalités planifiées (commentées dans docker-compose)
+- **Keycloak 24.0**: SSO/Identity Management (intégré à postgres-auth)
+- **Ollama**: LLM local pour fonctionnalités IA
+- **n8n**: Workflow automation
 
-| Rôle | Permissions |
-|------|-------------|
-| **patient** | Voir son profil, créer/annuler ses RDV |
-| **doctor** | Voir tous les patients, tous les RDV, confirmer/modifier RDV |
-| **admin** | Toutes les permissions doctor + supprimer patients/modifier statuts |
+## Support
 
-## 🛡️ Security - SAST Scanning
-
-### Running SAST Scan Locally
-
-```bash
-# Run SAST scan (requires Docker)
-./pipeline/scan-sast.sh
-```
-
-### Viewing SARIF Results
-
-The scan generates a `semgrep.sarif` file that can be viewed locally:
-
-#### Option 1: VS Code SARIF Viewer (Recommended)
-1. Install the **SARIF Viewer** extension in VS Code
-2. Open `semgrep.sarif` in VS Code
-3. Results will be displayed with code snippets and remediation guidance
-
-#### Option 2: GitHub Code Scanning
-1. Upload the `semgrep.sarif` file to a GitHub repository
-2. Go to **Security** → **Code Scanning** to view results
-
-#### Option 3: Command Line
-```bash
-# View JSON results directly
-cat semgrep.sarif | jq '.runs[].results'
-```
-
-### GitLab CI Integration
-
-The SAST scan runs automatically in the GitLab CI pipeline:
-- Triggered on merge requests and main branch commits
-- SARIF artifacts are stored for 30 days
-- View results in GitLab CI job logs
-
-## 📞 Support
-
-Pour toute question ou problème:
 - Email: contact@cims.example
 - Tél: REDACTED_PHONE
 
-## 📄 Licence
+## Licence
 
 © 2025 CIMS - CIMS
 Tous droits réservés.
