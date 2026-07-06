@@ -19,7 +19,7 @@ spec:
     spec:
       containers:
       - name: patient-service
-        image: ${IMAGE_PREFIX}/patient-service:${IMAGE_TAG}
+        image: cims/patient-service:local
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 3002

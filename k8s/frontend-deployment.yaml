@@ -19,7 +19,7 @@ spec:
     spec:
       containers:
       - name: frontend
-        image: ${IMAGE_PREFIX}/frontend:${IMAGE_TAG}
+        image: cims/frontend:local
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 80

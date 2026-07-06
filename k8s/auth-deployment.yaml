@@ -19,7 +19,7 @@ spec:
     spec:
       containers:
       - name: auth-service
-        image: ${IMAGE_PREFIX}/auth-service:${IMAGE_TAG}
+        image: cims/auth-service:local
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 3001

@@ -19,7 +19,7 @@ spec:
     spec:
       containers:
       - name: rdv-service
-        image: ${IMAGE_PREFIX}/rdv-service:${IMAGE_TAG}
+        image: cims/rdv-service:local
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 3003
