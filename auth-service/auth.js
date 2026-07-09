@@ -36,6 +36,48 @@ router.post('/register', async (req, res) => {
     const user  = result.rows[0];
     const token = makeToken(user);
 
+    // If role is doctor, also create doctor record in rdv-service
+    if (role === 'doctor') {
+      try {
+        const rdvUrl = process.env.RDV_SERVICE_URL || 'http://rdv-service:3003';
+        await fetch(`${rdvUrl}/api/rdv/doctors`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            name: `${firstName} ${lastName}`,
+            speciality: 'Généraliste',
+            email: email
+          })
+        });
+      } catch (rdvErr) {
+        console.error('[register] Failed to create doctor in rdv-service:', rdvErr.message);
+      }
+    }
+
+    // If role is patient, also create patient record in patient-service
+    if (role === 'patient') {
+      try {
+        const patientUrl = process.env.PATIENT_SERVICE_URL || 'http://patient-service:3002';
+        await fetch(`${patientUrl}/api/patients/sync-profile`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            firstName: firstName,
+            lastName: lastName,
+            email: email
+          })
+        });
+      } catch (patientErr) {
+        console.error('[register] Failed to create patient in patient-service:', patientErr.message);
+      }
+    }
+
     return res.status(201).json({
       message: 'Compte créé avec succès',
       user: { id: user.id, email: user.email, firstName: user.first_name, lastName: user.last_name, role: user.role },
@@ -114,10 +156,28 @@ router.get('/me', async (req, res) => {
   }
 });
 
+// ─── GET /api/auth/users/:id ────────────────────────────────────
+router.get('/users/:id', async (req, res) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) return res.status(401).json({ error: 'Token requis' });
+
+  try {
+    jwt.verify(token, process.env.JWT_SECRET);
+    const result = await pool.query(
+      'SELECT id, email, first_name, last_name, role FROM users WHERE id = $1',
+      [req.params.id]
+    );
+    if (!result.rows[0]) return res.status(404).json({ error: 'Utilisateur introuvable' });
+    return res.json(result.rows[0]);
+  } catch {
+    return res.status(401).json({ error: 'Token invalide' });
+  }
+});
+
 // ─── Helper ─────────────────────────────────────────────────────
 function makeToken(user) {
   return jwt.sign(
-    { userId: user.id, email: user.email, role: user.role },
+    { userId: user.id, email: user.email, role: user.role, firstName: user.first_name, lastName: user.last_name },
     process.env.JWT_SECRET,
     { expiresIn: '24h' }
   );

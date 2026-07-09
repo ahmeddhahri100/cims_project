@@ -134,18 +134,21 @@
 .calendar-main {
   flex: 1;
   display: flex;
-  padding: 2rem;
-  gap: 2rem;
+  padding: 1.5rem;
+  gap: 1.5rem;
   max-width: 1400px;
   margin: 0 auto;
   width: 100%;
+  min-height: 0;
+  align-items: flex-start;
 }
 
 .calendar-container {
   flex: 1;
+  min-width: 0;
   background: white;
   border-radius: 16px;
-  padding: 1.5rem;
+  padding: 1rem 1.25rem;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
 }
 
@@ -155,8 +158,8 @@
   align-items: center;
   justify-content: center;
   gap: 1rem;
-  margin-bottom: 1.5rem;
-  padding-bottom: 1rem;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.75rem;
   border-bottom: 1px solid #e2e8f0;
 }
 
@@ -219,9 +222,9 @@
 }
 
 .calendar-day-header {
-  padding: 0.75rem;
+  padding: 0.4rem;
   text-align: center;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   font-weight: 600;
   color: #64748b;
   text-transform: uppercase;
@@ -235,10 +238,10 @@
 }
 
 .calendar-day {
-  min-height: 100px;
-  padding: 0.5rem;
+  min-height: 65px;
+  padding: 0.3rem;
   background: #f8fafc;
-  border-radius: 8px;
+  border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s ease;
   border: 2px solid transparent;
@@ -302,9 +305,9 @@
 .calendar-legend {
   display: flex;
   justify-content: center;
-  gap: 1.5rem;
-  margin-top: 1.5rem;
-  padding-top: 1rem;
+  gap: 1rem;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
   border-top: 1px solid #e2e8f0;
 }
 
@@ -325,13 +328,16 @@
 /* Detail Panel */
 .calendar-detail-panel {
   width: 350px;
+  max-height: calc(100vh - 120px);
   background: white;
   border-radius: 16px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-  overflow: hidden;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   animation: slideIn 0.3s ease;
+  position: sticky;
+  top: 90px;
 }
 
 @keyframes slideIn {

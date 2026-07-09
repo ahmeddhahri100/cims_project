@@ -1,8 +1,8 @@
 // API URLs - using relative URLs for proxy or full URLs for direct access
 const API_BASE = {
-  auth: 'http://localhost:3001',
-  patient: 'http://localhost:3002',
-  rdv: 'http://localhost:3003'
+  auth: '',
+  patient: '',
+  rdv: ''
 }
 
 // Helper to get token
@@ -98,9 +98,16 @@ export async function fetchDoctors() {
   return apiCall(`${API_BASE.rdv}/api/rdv/doctors`)
 }
 
-export async function seedDoctors() {
-  return apiCall(`${API_BASE.rdv}/api/rdv/doctors/seed`, {
-    method: 'POST'
+export async function createDoctor(doctorData) {
+  return apiCall(`${API_BASE.rdv}/api/rdv/doctors`, {
+    method: 'POST',
+    body: JSON.stringify(doctorData)
+  })
+}
+
+export async function deleteDoctor(doctorId) {
+  return apiCall(`${API_BASE.rdv}/api/rdv/doctors/${doctorId}`, {
+    method: 'DELETE'
   })
 }
 

@@ -2,6 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
 import { ToastProvider } from './components/Toast.jsx'
+import './i18n'
 import './index.css'
 import './components/components.css'
 

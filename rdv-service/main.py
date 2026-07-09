@@ -2,6 +2,9 @@ import os
 from datetime import datetime
 from typing import List, Optional
 
+from dotenv import load_dotenv
+load_dotenv()
+
 import httpx
 from fastapi import FastAPI, Depends, HTTPException, Security, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -41,6 +44,7 @@ class AppointmentOut(BaseModel):
     id: int
     patient_id: str
     doctor_id: str
+    patient_name: Optional[str] = None
     appointment_date: datetime
     reason: str
     notes: Optional[str]
@@ -49,6 +53,12 @@ class AppointmentOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+class DoctorCreate(BaseModel):
+    name: str
+    speciality: str
+    email: Optional[str] = None
+    phone: Optional[str] = None
 
 class DoctorOut(BaseModel):
     id: str
@@ -94,6 +104,24 @@ async def get_patient_details(patient_id: str, token: str):
         except httpx.RequestError:
             return None
 
+# ── Helpers ─────────────────────────────────────────────────────
+async def enrich_with_patient_names(appointments: list, token: str) -> list:
+    """Inject patient_name into each appointment from patient-service"""
+    patient_ids = {apt.patient_id for apt in appointments if apt.patient_id}
+    name_map = {}
+    for pid in patient_ids:
+        details = await get_patient_details(pid, token)
+        if details:
+            first = details.get("first_name", "")
+            last = details.get("last_name", "")
+            name_map[pid] = f"{first} {last}".strip() or pid
+    result = []
+    for apt in appointments:
+        out = AppointmentOut.model_validate(apt)
+        out.patient_name = name_map.get(apt.patient_id, apt.patient_id)
+        result.append(out)
+    return result
+
 # ── Routes ──────────────────────────────────────────────────────
 
 @app.get("/health")
@@ -127,7 +155,23 @@ async def search_patients(
                 headers={"Authorization": f"Bearer {token}"}
             )
             if r.status_code == 200:
-                return r.json()
+                data = r.json()
+                patients = data.get("patients", [])
+                # Enrichir les emails depuis auth-service
+                for p in patients:
+                    pid = p.get("id")
+                    if pid:
+                        try:
+                            ur = await client.get(
+                                f"{AUTH_SERVICE_URL}/api/auth/users/{pid}",
+                                headers={"Authorization": f"Bearer {token}"}
+                            )
+                            if ur.status_code == 200:
+                                auth_user = ur.json()
+                                p["email"] = auth_user.get("email", p.get("email"))
+                        except:
+                            pass
+                return {"count": len(patients), "patients": patients}
             return {"count": 0, "patients": []}
         except httpx.RequestError:
             raise HTTPException(status_code=503, detail="Service patient indisponible")
@@ -148,31 +192,53 @@ async def get_patient(
         raise HTTPException(status_code=404, detail="Patient introuvable")
     return patient
 
-@app.post("/api/rdv/doctors/seed")
-async def seed_doctors(
+@app.post("/api/rdv/doctors", response_model=DoctorOut, status_code=201)
+async def create_doctor(
+    body: DoctorCreate,
     user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Initialiser les médecins (admin uniquement)"""
+    """Ajouter un nouveau médecin (idempotent par email)"""
     if user["role"] not in ("doctor", "admin"):
-        raise HTTPException(status_code=403, detail="Admin uniquement")
+        raise HTTPException(status_code=403, detail="Réservé aux médecins et admins")
 
-    doctors_data = [
-        {"id": "dr-001", "name": "Dr. Sana Mansour", "speciality": "Cardiologie"},
-        {"id": "dr-002", "name": "Dr. Karim Trabelsi", "speciality": "Pédiatrie"},
-        {"id": "dr-003", "name": "Dr. Leila Gharbi", "speciality": "Neurologie"},
-        {"id": "dr-004", "name": "Dr. Mounir Belhaj", "speciality": "Dermatologie"},
-        {"id": "dr-005", "name": "Dr. Ines Sfar", "speciality": "Gynécologie"},
-    ]
+    if body.email:
+        existing = db.query(Doctor).filter(Doctor.email == body.email).first()
+        if existing:
+            return existing
 
-    for doc_data in doctors_data:
-        existing = db.query(Doctor).filter(Doctor.id == doc_data["id"]).first()
-        if not existing:
-            doctor = Doctor(**doc_data)
-            db.add(doctor)
+    count = db.query(Doctor).count()
+    doctor_id = f"dr-{str(count + 1).zfill(3)}"
 
+    doctor = Doctor(
+        id=doctor_id,
+        name=body.name,
+        speciality=body.speciality,
+        email=body.email,
+        phone=body.phone,
+    )
+    db.add(doctor)
     db.commit()
-    return {"message": "Médecins initialisés"}
+    db.refresh(doctor)
+    return doctor
+
+@app.delete("/api/rdv/doctors/{doctor_id}")
+async def delete_doctor(
+    doctor_id: str,
+    user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Supprimer un médecin"""
+    if user["role"] not in ("doctor", "admin"):
+        raise HTTPException(status_code=403, detail="Réservé aux médecins et admins")
+
+    doctor = db.query(Doctor).filter(Doctor.id == doctor_id).first()
+    if not doctor:
+        raise HTTPException(status_code=404, detail="Médecin introuvable")
+
+    db.delete(doctor)
+    db.commit()
+    return {"message": "Médecin supprimé"}
 
 # ── Appointments (alias /api/rdv pour compatibilité frontend) ───
 
@@ -233,24 +299,42 @@ async def create_appointment(
 @app.get("/api/appointments/my", response_model=List[AppointmentOut])
 async def my_appointments(
     user: dict = Depends(get_current_user),
+    credentials: HTTPAuthorizationCredentials = Security(security),
     db: Session = Depends(get_db)
 ):
     patient_id = str(user.get("userId", user.get("id", "")))
-    return db.query(Appointment)\
+    apts = db.query(Appointment)\
              .filter(Appointment.patient_id == patient_id)\
              .order_by(Appointment.appointment_date.desc())\
              .all()
+    token = credentials.credentials
+    return await enrich_with_patient_names(apts, token)
 
 # Tous les rendez-vous (médecin / admin)
 @app.get("/api/rdv", response_model=List[AppointmentOut])
 @app.get("/api/appointments", response_model=List[AppointmentOut])
 async def all_appointments(
     user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    credentials: HTTPAuthorizationCredentials = Security(security),
+    db: Session = Depends(get_db),
+    doctor_id: Optional[str] = None,
 ):
     if user["role"] not in ("doctor", "admin"):
         raise HTTPException(status_code=403, detail="Réservé aux médecins et admins")
-    return db.query(Appointment).order_by(Appointment.appointment_date.desc()).all()
+
+    query = db.query(Appointment)
+
+    if user["role"] == "doctor":
+        if doctor_id:
+            query = query.filter(Appointment.doctor_id == doctor_id)
+        else:
+            doc = db.query(Doctor).filter(Doctor.email == user.get("email", "")).first()
+            if doc:
+                query = query.filter(Appointment.doctor_id == doc.id)
+
+    apts = query.order_by(Appointment.appointment_date.desc()).all()
+    token = credentials.credentials
+    return await enrich_with_patient_names(apts, token)
 
 # Détail d'un RDV
 @app.get("/api/rdv/{rdv_id}", response_model=AppointmentOut)
@@ -258,6 +342,7 @@ async def all_appointments(
 async def get_appointment(
     rdv_id: int,
     user: dict = Depends(get_current_user),
+    credentials: HTTPAuthorizationCredentials = Security(security),
     db: Session = Depends(get_db)
 ):
     rdv = db.query(Appointment).filter(Appointment.id == rdv_id).first()
@@ -267,7 +352,9 @@ async def get_appointment(
     if user["role"] == "patient" and rdv.patient_id != user["userId"]:
         raise HTTPException(status_code=403, detail="Accès refusé")
 
-    return rdv
+    token = credentials.credentials
+    enriched = await enrich_with_patient_names([rdv], token)
+    return enriched[0] if enriched else rdv
 
 # Annuler un RDV
 @app.post("/api/rdv/{rdv_id}/cancel")

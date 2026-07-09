@@ -1,6 +1,8 @@
+
 const express = require('express');
 const cors = require('cors');
 const patientRoutes = require('./patients');
+const { connectDB } = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 3002;
@@ -16,6 +18,11 @@ app.get('/health', (req, res) => {
 // Routes
 app.use('/api/patients', patientRoutes);
 
-app.listen(PORT, () => {
-  console.log(`Patient service running on port ${PORT}`);
+connectDB().then(() => {
+  app.listen(PORT, () => {
+    console.log(`Patient service running on port ${PORT}`);
+  });
+}).catch(err => {
+  console.error('Failed to connect to MongoDB:', err.message);
+  process.exit(1);
 });
