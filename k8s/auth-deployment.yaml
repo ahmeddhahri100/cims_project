@@ -35,6 +35,11 @@ spec:
             secretKeyRef:
               name: cims-secrets
               key: JWT_SECRET
+        - name: RDV_SERVICE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: cims-config
+              key: RDV_SERVICE_URL
         - name: DATABASE_URL
           valueFrom:
             secretKeyRef:
