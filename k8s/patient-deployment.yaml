@@ -17,10 +17,12 @@ spec:
       labels:
         app: patient-service
     spec:
+      imagePullSecrets:
+      - name: gitlab-registry
       containers:
       - name: patient-service
-        image: cims/patient-service:local
-        imagePullPolicy: IfNotPresent
+        image: registry.gitlab.com/cims/microservice/patient-service:latest
+        imagePullPolicy: Always
         ports:
         - containerPort: 3002
           name: http

@@ -17,10 +17,12 @@ spec:
       labels:
         app: auth-service
     spec:
+      imagePullSecrets:
+      - name: gitlab-registry
       containers:
       - name: auth-service
-        image: cims/auth-service:local
-        imagePullPolicy: IfNotPresent
+        image: registry.gitlab.com/cims/microservice/auth-service:latest
+        imagePullPolicy: Always
         ports:
         - containerPort: 3001
           name: http

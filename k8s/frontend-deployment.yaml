@@ -17,10 +17,12 @@ spec:
       labels:
         app: frontend
     spec:
+      imagePullSecrets:
+      - name: gitlab-registry
       containers:
       - name: frontend
-        image: cims/frontend:local
-        imagePullPolicy: IfNotPresent
+        image: registry.gitlab.com/cims/microservice/frontend:latest
+        imagePullPolicy: Always
         ports:
         - containerPort: 80
           name: http

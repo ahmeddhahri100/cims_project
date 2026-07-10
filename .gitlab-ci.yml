@@ -246,15 +246,40 @@ owasp:baseline:
     - schedules
 
 # ------------------------------------------------
-# DEPLOY STAGE — ArgoCD handles deployment via GitOps
+# DEPLOY STAGE — Update k8s manifests & push to trigger ArgoCD
 # ------------------------------------------------
-# This job is intentionally empty. ArgoCD watches the k8s/ directory
-# on the main branch and auto-syncs to the cluster.
-deploy:argocd:
+update-image-tags:
   stage: deploy
   image: alpine:latest
+  before_script:
+    - apk add --no-cache git
+    - git config user.email "ci@cims.local"
+    - git config user.name "CIMS CI Pipeline"
   script:
-    - echo "ArgoCD handles deployment. Push to main → ArgoCD auto-syncs."
+    - |
+      for f in k8s/*-deployment.yaml; do
+        service=$(basename "$f" | sed 's/-deployment.yaml//')
+        sed -i "s|image: registry.gitlab.com/cims/microservice/${service}:.*|image: registry.gitlab.com/cims/microservice/${service}:${CI_COMMIT_SHORT_SHA}|" "$f"
+      done
+    - |
+      if ! git diff --cached --exit-code; then
+        echo "Changes detected, committing..."
+        git add k8s/*-deployment.yaml
+        git commit -m "Update image tags to $CI_COMMIT_SHORT_SHA [skip ci]"
+        git push https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git HEAD:${CI_COMMIT_REF_NAME}
+      else
+        echo "No changes to commit"
+        exit 0
+      fi
   only:
     - main
+  needs:
+    - build:auth
+    - build:patient
+    - build:rdv
+    - build:frontend
+    - test:auth
+    - test:patient
+    - test:rdv
+    - test:frontend
     

@@ -17,10 +17,12 @@ spec:
       labels:
         app: rdv-service
     spec:
+      imagePullSecrets:
+      - name: gitlab-registry
       containers:
       - name: rdv-service
-        image: cims/rdv-service:local
-        imagePullPolicy: IfNotPresent
+        image: registry.gitlab.com/cims/microservice/rdv-service:latest
+        imagePullPolicy: Always
         ports:
         - containerPort: 3003
           name: http

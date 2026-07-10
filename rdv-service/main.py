@@ -15,11 +15,10 @@ from sqlalchemy.orm import Session
 from database import get_db, engine, Base
 from models import Appointment, Doctor
 
-app = FastAPI(title="RDV Service", version="1.0.0", description="CIMS — Gestion des rendez-vous")
+# Créer les tables au démarrage
+Base.metadata.create_all(bind=engine)
 
-@app.on_event("startup")
-def startup():
-    Base.metadata.create_all(bind=engine)
+app = FastAPI(title="RDV Service", version="1.0.0", description="CIMS — Gestion des rendez-vous")
 
 app.add_middleware(
     CORSMiddleware,
