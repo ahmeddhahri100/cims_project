@@ -248,7 +248,7 @@ owasp:baseline:
 # ------------------------------------------------
 # DEPLOY STAGE — Update k8s manifests & push to trigger ArgoCD
 # ------------------------------------------------
-update-image-tags:
+deploy:minikube:
   stage: deploy
   image: alpine:latest
   before_script:
