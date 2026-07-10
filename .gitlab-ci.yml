@@ -99,7 +99,7 @@ test:rdv:
     POSTGRES_DB: cims_rdv
     POSTGRES_USER: postgres
     POSTGRES_PASSWORD: devpassword
-    DATABASE_URL: "postgresql://postgres:devpassword@postgres:5432/cims_rdv"
+    DATABASE_URL: $DATABASE_URL
   script:
     - cd rdv-service
     - pip install -r requirements.txt
@@ -274,13 +274,4 @@ deploy:minikube:
       fi
   only:
     - main
-  needs:
-    - build:auth
-    - build:patient
-    - build:rdv
-    - build:frontend
-    - test:auth
-    - test:patient
-    - test:rdv
-    - test:frontend
     
