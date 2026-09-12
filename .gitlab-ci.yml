@@ -273,3 +273,4 @@ deploy:minikube:
       fi
   only:
     - main
+    
