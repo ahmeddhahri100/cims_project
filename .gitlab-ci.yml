@@ -272,5 +272,5 @@ deploy:minikube:
         exit 0
       fi
   only:
-    - main
+    - main 
     
