@@ -1,0 +1,552 @@
+{
+  "name": "Send K8s Alert Email",
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "getAll",
+        "indexId": "filebeat-*",
+        "options": {
+          "sort": "@timestamp"
+        }
+      },
+      "type": "n8n-nodes-base.elasticsearch",
+      "typeVersion": 1,
+      "position": [
+        -1408,
+        -64
+      ],
+      "id": "adaefaad-2071-44cc-8009-b5388601877c",
+      "name": "Get many documents",
+      "credentials": {
+        "elasticsearchApi": {
+          "id": "3PjskGg18UZgw0sb",
+          "name": "Elasticsearch account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              },
+              {
+                "name": "X-Threat-Level",
+                "value": "={{ $json.ai_analysis.threat_level }}"
+              }
+            ]
+          }
+        }
+      },
+      "id": "909771f4-0860-4d8b-8e14-9a349f0a0be9",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1024,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const prev = $('Parse AI Result').item.json;\nconst { session_id, action, started_at, health, log_summary, ai_analysis, logs } = prev;\nconst finished_at = new Date().toISOString();\nconst COLORS = { CRITICAL:'#A32D2D', HIGH:'#C5610A', MEDIUM:'#185FA5', LOW:'#3B6D11', NONE:'#4A4A40' };\n\nconst threat_level = (ai_analysis?.threat_level || 'NONE').toUpperCase();\n\n// Only pass recipient_email if a real threat is detected\nconst recipient_email = threat_level !== 'NONE' ? (prev.recipient_email || '') : '';\n\nconst pods = (logs || []).filter(l => l.pod).map(l => ({\n  name: l.pod,\n  status: l.severity === 'NONE' ? 'Running' : 'ThreatDetected',\n  ip: ''\n})) || [];\n\nconst formattedLogs = (logs || []).map(l => ({\n  pod_name: l.pod,\n  log_entry: l.log_preview || ''\n})) || [];\n\nreturn [{ json: {\n  success: true,\n  action,\n  session_id,\n  recipient_email,\n  timing: {\n    started_at,\n    finished_at,\n    duration_ms: new Date(finished_at) - new Date(started_at)\n  },\n  pods: pods,\n  logs: formattedLogs,\n  ai_analysis: {\n    threat_level,\n    attack_types: ai_analysis.attack_types,\n    affected_services: ai_analysis.affected_services,\n    summary: ai_analysis.summary,\n    confidence_score: ai_analysis.confidence_score,\n    recommendations: ai_analysis.recommendations,\n    requires_immediate_action: ai_analysis.requires_immediate_action,\n    cluster_health_score: ai_analysis.cluster_health_score,\n    threat_details: ai_analysis.threat_details\n  },\n  log_summary: log_summary || {},\n  threats: (logs || []).filter(l => l.hasThreat).map(l => ({\n    pod: l.pod,\n    severity: l.severity,\n    detections: l.detections\n  }))\n}}];"
+      },
+      "id": "e4ec9e56-3851-4f1e-b6c4-88358c732ccd",
+      "name": "Build Final Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        768,
+        -64
+      ]
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "voc"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "name",
+          "value": "ai_attack_analysis"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "session_id",
+              "displayName": "session_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "logs_analyzed",
+              "displayName": "logs_analyzed",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "threat_detected",
+              "displayName": "threat_detected",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "boolean",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "threat_level",
+              "displayName": "threat_level",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "attack_types",
+              "displayName": "attack_types",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "affected_services",
+              "displayName": "affected_services",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "summary",
+              "displayName": "summary",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "recommendations",
+              "displayName": "recommendations",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "confidence",
+              "displayName": "confidence",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "raw_response",
+              "displayName": "raw_response",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "04ed5f43-f0d2-4f72-a185-bb707ff3bff0",
+      "name": "Insert rows in a table",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        576,
+        -64
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "RKPPYYjhPoHSqiGH",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const i = $input.first().json;\nconst a = i.ai_analysis || {};\nconst toArray = (val) => Array.isArray(val) ? val : (typeof val === 'string' ? [val] : []);\nreturn [{ json: {\n  session_id:        i.session_id,\n  threat_level:      a.threat_level,\n  attack_types:      toArray(a.attack_types),\n  affected_services: toArray(a.affected_services),\n  summary:           a.summary,\n  recommendations:   toArray(a.recommendations),\n  confidence:        a.confidence_score,\n  raw_response:      i.raw_ai_text || '',\n  logs_analyzed:     i.log_summary.total_log_lines || 0,\n  threat_detected:   (a.threat_level !== 'NONE')\n}}];"
+      },
+      "id": "a8459125-65da-47a2-bc84-abdf9420fe7c",
+      "name": "Prepare Postgres Insert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        352,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const llmOut = $input.first().json;\nconst prev   = $('Detect + Build Prompt').item.json;\n\nif (prev.is_stop) {\n  return [{ json: { ...prev, ai_analysis: {\n    threat_level:'NONE', attack_types:[], affected_services:[],\n    summary:'Monitoring stopped.', threat_details:'',\n    recommendations:[], confidence_score:1.0,\n    cluster_health_score:1.0, requires_immediate_action:false\n  }, raw_ai_text:'' }}];\n}\n\n// Handle no threats case\nif (prev.ollama_prompt === '__SKIP__') {\n  return [{ json: { ...prev, ai_analysis: {\n    threat_level:'NONE', attack_types:[], affected_services:[],\n    summary:'No threats detected in CIMS pod logs.', threat_details:'',\n    recommendations:['Continue monitoring'], confidence_score:1.0,\n    cluster_health_score: prev.health.totalPods > 0 ? parseFloat((prev.health.runningPods/prev.health.totalPods).toFixed(2)) : 0.5,\n    requires_immediate_action:false\n  }, raw_ai_text:'No threats found' }}];\n}\n\nconst rawText = llmOut.text || llmOut.output || llmOut.response || '';\nlet ai_analysis;\ntry {\n  const cleaned = rawText.replace(/```json\\s*/gi,'').replace(/```\\s*/gi,'').trim();\n  const match   = cleaned.match(/\\{[\\s\\S]*\\}/);\n  if (!match) throw new Error('No JSON in AI output');\n  ai_analysis = JSON.parse(match[0]);\n  ai_analysis.confidence_score     = Math.min(1,Math.max(0,Number(ai_analysis.confidence_score)||0));\n  ai_analysis.cluster_health_score = Math.min(1,Math.max(0,Number(ai_analysis.cluster_health_score)||0));\n} catch(err) {\n  const ls = prev.log_summary||{};\n  const h  = prev.health||{};\n  ai_analysis = {\n    threat_level: ls.max_severity||'UNKNOWN',\n    attack_types: ls.attack_types||[],\n    affected_services: (prev.logs||[]).filter(l=>l.hasThreat).map(l=>l.pod),\n    summary: `AI parse error: ${err.message.slice(0,80)}. Rule scan: ${(ls.attack_types||[]).join(', ')||'nothing found'}.`,\n    threat_details: `Fallback. Raw: ${rawText.slice(0,200)}`,\n    recommendations: ['Check Ollama','Re-run scan','Review logs manually'],\n    confidence_score: 0.35,\n    cluster_health_score: h.totalPods>0 ? parseFloat((h.runningPods/h.totalPods).toFixed(2)) : 0.5,\n    requires_immediate_action: (ls.max_severity==='CRITICAL'||ls.max_severity==='HIGH')\n  };\n}\n\nreturn [{ json: { ...prev, ai_analysis, raw_ai_text: rawText.slice(0,800) }}];"
+      },
+      "id": "f95583f0-a364-41d4-9c25-540857d4008d",
+      "name": "Parse AI Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        -112
+      ]
+    },
+    {
+      "parameters": {
+        "model": "llama3.1:8b",
+        "options": {
+          "temperature": 0.1,
+          "numPredict": 1024
+        }
+      },
+      "id": "c4410f50-36d8-46cd-b4e1-2e0583b707af",
+      "name": "Ollama Model",
+      "type": "@n8n/n8n-nodes-langchain.lmOllama",
+      "typeVersion": 1,
+      "position": [
+        -80,
+        304
+      ],
+      "credentials": {
+        "ollamaApi": {
+          "id": "UjLTZgwN5zpihOQe",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.ollama_prompt }}",
+        "batching": {}
+      },
+      "id": "cdae6e8e-cb29-4a58-9b7a-f975bde7b898",
+      "name": "Basic LLM Chain",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        -160,
+        -64
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ── Pull data from watcher ───────────────────────\nconst parseOut = $input.first().json;\nconst { action, session_id, namespace, source, started_at, is_stop,\n        auditEvents, summary, total_pods, pods_with_threats, \n        total_threats, max_severity } = parseOut;\n\n// ── Stop short-circuit ─────────────────────────────\nif (is_stop) {\n  return [{ json: {\n    ...parseOut,\n    logs: [], log_summary: { max_severity:'NONE', attack_types:[], pods_with_threats:0, total_log_lines:0 },\n    health: { totalPods:0, runningPods:0, failedPods:0, pendingPods:0, warnings:0 },\n    ollama_prompt: '__SKIP__'\n  }}];\n}\n\n// ── Process watcher events ──────────────────────\nconst logs = (auditEvents || []).map(e => ({\n  pod: e.pod,\n  service: e.service,\n  severity: e.max_severity,\n  hasThreat: e.has_threat,\n  detections: e.detections || [],\n  log_preview: e.log_preview || ''\n}));\n\nconst log_summary = {\n  max_severity: max_severity || 'NONE',\n  attack_types: [...new Set((auditEvents || []).flatMap(e => \n    (e.detections || []).map(d => d.pattern)\n  ))],\n  pods_with_threats: pods_with_threats || 0,\n  total_log_lines: (auditEvents || []).reduce((s, e) => s + (e.log_lines || 0), 0),\n  total_errors: (auditEvents || []).filter(e => \n    e.detections?.some(d => d.severity === 'MEDIUM' || d.severity === 'HIGH' || d.severity === 'CRITICAL')\n  ).length\n};\n\nconst health = {\n  totalPods: total_pods || 0,\n  runningPods: (auditEvents || []).filter(e => e.status === 'Running').length,\n  failedPods: (auditEvents || []).filter(e => e.status === 'Failed').length,\n  pendingPods: (auditEvents || []).filter(e => e.status === 'Pending').length,\n  warnings: (auditEvents || []).filter(e => e.status === 'Error').length,\n  highRestartPods: []\n};\n\n// ── Build Ollama prompt ─────────────────────────\nconst ollama_prompt = log_summary.attack_types.length > 0 \n  ? `You are a cybersecurity expert analyzing K8s pod logs from CIMS healthcare app. \n\nAnalyze these log events for attack indicators:\n- SQL injection, XSS, command injection, auth bypass\n- Privilege escalation, secret/configmap access\n- Data exfiltration, reconnaissance\n- Anomalous behavior: unusual users, off-hours activity\n\nEvents:\n${JSON.stringify(auditEvents, null, 2).slice(0, 3000)}\n\nRespond ONLY with valid JSON:\n{\n  \"threat_level\": \"CRITICAL|HIGH|MEDIUM|LOW|NONE\",\n  \"attack_types\": [\"array of detected types\"],\n  \"summary\": \"brief explanation\",\n  \"threat_details\": \"specific details\",\n  \"recommendations\": [\"action 1\", \"action 2\"],\n  \"confidence_score\": 0.0-1.0,\n  \"requires_immediate_action\": true|false\n}`\n  : '__SKIP__';\n\nreturn [{ json: {\n  ...parseOut, logs, log_summary, health, ollama_prompt\n}}];"
+      },
+      "id": "ad791ae1-9fa3-4fa7-a8f1-f7f48726c9a5",
+      "name": "Detect + Build Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -480,
+        64
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw  = $input.first().json;\nconst body = raw.body || raw;\n\nconst session_id = body.session_id || ('cims_scan_' + Date.now());\nconst namespace  = body.namespace  || 'cims';\nconst source = body.source || 'platform-voc';\n\nconst action = (body.action || 'analyze').toLowerCase();\nconst recipient_email = body.recipient_email || '';\n\nif (action === 'stop') {\n  return [{ json: {\n    action, session_id, namespace, source, recipient_email,\n    started_at: new Date().toISOString(), is_stop: true\n  }}];\n}\n\nreturn [{ json: {\n  action, session_id, namespace, source, recipient_email,\n  started_at: new Date().toISOString(), is_stop: false,\n  auditEvents: body.events || [],\n  summary: body.summary || {},\n  total_pods: body.total_pods || 0,\n  pods_with_threats: body.pods_with_threats || 0,\n  total_threats: body.total_threats || 0,\n  max_severity: body.max_severity || 'NONE'\n}}];"
+      },
+      "id": "a8488c10-1571-4e87-b1f3-24a7e2eb732c",
+      "name": "Parse Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1120,
+        -64
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "cims-monitor",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "93a16125-9775-4d74-bee8-add05b5f17f5",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -1824,
+        -32
+      ],
+      "webhookId": "cims-monitor"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nreturn items.filter(item => item.json.recipient_email).map(item => ({ json: item.json }));"
+      },
+      "id": "c7e3a1b2-4f5d-6a8b-9c0d-1e2f3a4b5c6d",
+      "name": "Guard Email (skip if no recipient)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1024,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.recipient_email }}",
+        "subject": "=[VOC Platform] CIMS Report - Threat Level: {{ $json.ai_analysis.threat_level }}",
+        "message": "=<div style=\"font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #1e293b; border-radius: 6px; overflow: hidden; background-color: #ffffff; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);\">\n  \n  <!-- Header -->\n  <div style=\"background-color: #0f172a; color: #38bdf8; padding: 24px; text-align: left; border-bottom: 2px solid #38bdf8;\">\n    <h2 style=\"margin: 0; font-size: 22px; font-weight: 700; letter-spacing: 0.5px;\">🛡️ VOC Platform Assessment</h2>\n    <p style=\"margin: 4px 0 0 0; font-size: 13px; color: #94a3b8; font-family: monospace;\">SYSTEM: K8s Cluster Vulnerability Report</p>\n  </div>\n\n  <!-- Content Body -->\n  <div style=\"padding: 25px; color: #334155; line-height: 1.6;\">\n    \n    <!-- Executive Summary Section -->\n    <div style=\"background-color: #f8fafc; border-left: 4px solid #38bdf8; padding: 15px; margin-bottom: 25px; border-radius: 0 4px 4px 0;\">\n      <h3 style=\"margin: 0 0 8px 0; color: #0f172a; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px;\">Executive Summary:</h3>\n      <p style=\"margin: 0; font-size: 14px; color: #475569;\">{{ $json.ai_analysis.summary }}</p>\n    </div>\n\n    <!-- Metrics Table -->\n    <table style=\"width: 100%; border-collapse: collapse; margin-bottom: 25px; font-size: 14px;\">\n      <tr style=\"border-bottom: 1px solid #e2e8f0;\">\n        <td style=\"padding: 12px 0; font-weight: 600; color: #64748b; width: 35%;\">Threat Level</td>\n        <td style=\"padding: 12px 0; font-weight: 700; color: #10b981;\">{{ $json.ai_analysis.threat_level }}</td>\n      </tr>\n      <tr style=\"border-bottom: 1px solid #e2e8f0;\">\n        <td style=\"padding: 12px 0; font-weight: 600; color: #64748b;\">Confidence Score</td>\n        <td style=\"padding: 12px 0; font-weight: 700; color: #0f172a;\">{{ $json.ai_analysis.confidence_score }}</td>\n      </tr>\n      <tr style=\"border-bottom: 1px solid #e2e8f0;\">\n        <td style=\"p... (line truncated to 2000 chars)
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1024,
+        32
+      ],
+      "id": "93155666-12a4-4386-a824-69ebfa304a6a",
+      "name": "Send a message",
+      "webhookId": "486dc475-f4c1-4464-ac48-00602f0bec6f",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2bhb8Pw1oxhS6H8M",
+          "name": "Gmail account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Get many documents": {
+      "main": [
+        [
+          {
+            "node": "Parse Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Final Response": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Guard Email (skip if no recipient)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guard Email (skip if no recipient)": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert rows in a table": {
+      "main": [
+        [
+          {
+            "node": "Build Final Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Postgres Insert": {
+      "main": [
+        [
+          {
+            "node": "Insert rows in a table",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Result": {
+      "main": [
+        [
+          {
+            "node": "Prepare Postgres Insert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Detect + Build Prompt": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Request": {
+      "main": [
+        [
+          {
+            "node": "Detect + Build Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Get many documents",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "f04db3a8-33a0-4456-8639-ba3a88730c3c",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "8497f37059284bfa652b1cf281e66fe07a8f7331be9384d7180501d59e29bf33"
+  },
+  "id": "mjRSNq7ltddMSkow",
+  "tags": [
+    {
+      "updatedAt": "2026-06-15T20:21:29.404Z",
+      "createdAt": "2026-06-15T20:21:29.404Z",
+      "id": "jHk5DxSL8ClWhCrf",
+      "name": "monitor"
+    },
+    {
+      "updatedAt": "2026-06-15T20:21:29.431Z",
+      "createdAt": "2026-06-15T20:21:29.431Z",
+      "id": "lmnr4OmETqXn8cLq",
+      "name": "security"
+    },
+    {
+      "updatedAt": "2026-06-15T20:21:29.433Z",
+      "createdAt": "2026-06-15T20:21:29.433Z",
+      "id": "ztJZcqqfifwdVolH",
+      "name": "ai"
+    },
+    {
+      "updatedAt": "2026-06-15T20:21:29.439Z",
+      "createdAt": "2026-06-15T20:21:29.439Z",
+      "id": "Q77oMAQSDMCqTC3B",
+      "name": "k8s"
+    },
+    {
+      "updatedAt": "2026-06-15T20:21:29.439Z",
+      "createdAt": "2026-06-15T20:21:29.439Z",
+      "id": "acOS63TcUmn7XESq",
+      "name": "ollama"
+    },
+    {
+      "updatedAt": "2026-06-15T20:21:29.442Z",
+      "createdAt": "2026-06-15T20:21:29.442Z",
+      "id": "xRTsEWLvzyO4Dmkk",
+      "name": "cims"
+    },
+    {
+      "updatedAt": "2026-06-19T22:50:26.409Z",
+      "createdAt": "2026-06-19T22:50:26.409Z",
+      "id": "75in4KyJNuLPOvBp",
+      "name": "email"
+    },
+    {
+      "updatedAt": "2026-06-22T13:59:05.758Z",
+      "createdAt": "2026-06-22T13:59:05.758Z",
+      "id": "BLwiEDVWNpAbxwyt",
+      "name": "alert"
+    }
+  ]
+}

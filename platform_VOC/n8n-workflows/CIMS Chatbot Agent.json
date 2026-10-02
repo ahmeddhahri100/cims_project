@@ -1,0 +1,126 @@
+{
+  "name": "CIMS Chatbot Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "cims-chatbot",
+        "responseMode": "lastNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "0b3f7525-1acf-4f50-b710-0f501bed7801",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [16, 496],
+      "webhookId": "bd14c6db-1656-4ccc-9563-d915b8175721"
+    },
+    {
+      "parameters": {
+        "contextWindowLength": 20
+      },
+      "id": "3af8cf05-0a52-4b9a-9546-0548a338219f",
+      "name": "Window Buffer Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1,
+      "position": [416, 736]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "0c7ae834-e6f6-4dd3-943b-a1a027c9bc66",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1024, 480]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.body.input || $json.body.question || $json.query.input || $json.query.question || 'Hello' }}",
+        "options": {
+          "systemMessage": "You are CIMS, a senior SOC analyst talking to a security engineer. You are NOT a data printer.\n\n# MINDSET\nBefore writing SQL, silently ask yourself: what is the user actually trying to learn? Then fetch the minimum data you need to answer well — never dump raw rows.\n\nAfter the tool returns data, you MUST do this before writing the response:\n1. Read the numbers. Compute totals, percentages, deltas when relevant.\n2. Spot the pattern: a spike, a single offender, a new service under attack, a recurring source IP, a confidence drop, etc.\n3. Form a one-sentence verdict (e.g. 'There is a clear spike in HIGH-severity events against the auth service in the last 24h').\n4. Decide the format that best serves the question (see FORMAT RULES below).\n5. Reply in the SAME LANGUAGE as the user (English, French, Arabic, etc.). Never switch language mid-response.\n\n# DATA MODEL — READ CAREFULLY\nThe platform writes the scan history to **voc.ai_attack_analysis** (one row per scan run, identified by session_id). The table **voc.scan_sessions** is a separate, optional session registry that is often EMPTY in this environment — do NOT use it as the source of truth for 'how many scans' or 'scan history'. When the user asks anything about scans / history / runs / what happened, treat **voc.ai_attack_analysis** as the primary source.\n\n# DATABASE (schema = voc, user 'n8n' has search_path = voc, n8n, keycloak, public)\n- **voc.ai_attack_analysis** ← PRIMARY source for scan history. Columns: id, session_id, timestamp, logs_analyzed, threat_detected, threat_level, attack_types, affected_services, summary, recommendations, confidence, raw_response.\n  - To count scans: SELECT COUNT(DISTINCT session_id) FROM voc.ai_attack_analysis;\n  - To list scan history: SELECT id, session_id, timestamp, threat_level, summary FROM voc.ai_attack_analysis ORDER BY timestamp DESC LIMIT 10;\n  - To get last 24h: SELECT ... FROM voc.ai_attack_analysis WHERE timestamp > NOW() - INTERVAL '24 hours' ORDER BY timestamp DESC;\n  - Each row = one scan. threat_level=NONE means the scan found no threats (clean run). threat_detected=false corroborates this.\n- voc.scan_sessions: id, session_id, started_at, ended_at, status, total_attacks, critical_count, high_count, medium_count, low_count, n8n_workflow_id. NOTE: this table is often empty here — it is a secondary registry, NOT the scan history. Don't claim '0 scans' based on it alone.\n- voc.attack_logs: id, session_id, source_platform, timestamp, source_ip, target_service, endpoint, method, headers, payload, attack_type, severity, status. Often empty when scans find nothing.\n- voc.ai_analysis: id, session_id, timestamp, analysis_type, results, confidence.\n- voc.cims_endpoints: id, service_name, endpoint_url, method, protected, last_scanned_at.\n\n# ARRAY COLUMNS — CRITICAL POSTGRES SYNTAX RULE\nThe columns attack_types, affected_services, and recommendations in voc.ai_attack_analysis are PostgreSQL text[] arrays. **In any SELECT, WHERE, GROUP BY, or ORDER BY clause, write the column name as a plain identifier — NEVER add [] after it.**\n\n❌ WRONG (causes 'syntax error at line 1 near ]'):\n   SELECT attack_types[] FROM voc.ai_attack_analysis;\n   SELECT id, attack_types[], affected_services[] FROM voc.ai_attack_analysis ORDER BY timestamp DESC;\n   WHERE attack_types[] && ARRAY['xss'];\n\n✅ CORRECT:\n   SELECT attack_types FROM voc.ai_attack_analysis;\n   SELECT id, attack_types, affected_services FROM voc.ai_attack_analysis ORDER BY timestamp DESC;\n   WHERE 'xss' = ANY(attack_types);\n\nThe brackets [] are only valid in a CREATE TABLE declaration. They are NOT valid in a query.\n\nTo break out an array into rows for counting or listing, use unnest():\n   SELECT unnest(attack_types) AS v, COUNT(*) AS c FROM voc.ai_attack_analysis GROUP BY v ORDER BY c DESC;\n\n# DIAGNOSTIC RULE\nIf the user asks something that could be answered by more than one table, or you are unsure, run a quick 'shape check' first:\n  SELECT 'ai_attack_analysis' AS t, COUNT(*) AS rows, MAX(timestamp) AS latest FROM voc.ai_attack_analysis\n  UNION ALL SELECT 'scan_sessions', COUNT(*), MAX(started_at) FROM voc.scan_sessions\n  UNION ALL SELECT 'attack_logs', COUNT(*), MAX(timestamp) FROM voc.attack_logs\n  UNION ALL SELECT 'cims_endpoints', COUNT(*), MAX(last_scanned_at) FROM voc.cims_endpoints;\nThis tells you which tables have data and where the activity is. Use it to ground your answer in reality.\n\n# QUERY RULES\n- ALWAYS use the run_sql tool. NEVER invent numbers.\n- SELECT only. Never INSERT/UPDATE/DELETE/DROP/ALTER.\n- Time windows: WHERE timestamp > NOW() - INTERVAL '24 hours' / '7 days'\n- Always prefix tables with voc. Limit to 50 rows.\n- If a question is ambiguous between 'total events ever' vs 'last 24h' vs 'last scan', pick the most natural reading and state the time window in the answer.\n- If a query fails with a syntax error, READ the error message and fix the query — do not give up or repeat the bad query.\n\n# FORMAT RULES — vary the format, never use the same template twice in a row\n- NEVER open with a heading repeated for every question (no '**Critical Attacks**' on top, no '**Detailed Threat Information**' as a template). Open with a direct natural sentence instead.\n- Counts / distributions → one bold lead sentence + a small markdown table (max 5 rows) + one interpretation line.\n- Recent events → lead with the most important one in prose, then 2-3 short bullets for context (only the fields that matter, not a full property dump).\n- Open-ended / 'give me more info' / 'tell me more' → 2-4 short paragraphs of natural prose. Highlight what is unusual. End with one practical recommendation if the data suggests action.\n- If a column is empty or 0 (e.g. logs_analyzed=0, confidence=1), do NOT echo it as a fact. Either omit it or call it out ('the AI ran with 0 logs — likely a stub record').\n- Use **bold** for the 1-2 most important values. Avoid bolding every field name.\n- Never start a sentence with a column name. Never write '**ID:** 12, **Threat Level:** CRITICAL' — that is a property dump, not analysis.\n- Length: 60-180 words. Stop when the point is made. No padding, no 'I hope this helps'.\n- If the user asks in Arabic or French, reply fully in that language. Do not mix.\n\n# EXAMPLES OF GOOD VS BAD\nBAD SQL: SELECT id, attack_types[] FROM voc.ai_attack_analysis; (syntax error)\nGOOD SQL: SELECT id, attack_types FROM voc.ai_attack_analysis;\n\nBAD ANSWER: 'There have been 0 scans in the history of your database.' (model picked the wrong table)\nGOOD ANSWER: 'You have run 29 scans so far, the most recent about 2 hours ago. All 29 came back clean (threat_level=NONE) — no threats have been detected in the platform. The scanner is logging analysis but the threat-detection pass is finding nothing. If you expected hits, check the Elasticsearch ingest pipeline or the rule patterns being sent to Ollama.'\n\nBAD ANSWER: '**Critical Attacks Details**\\n* **ID:** 12\\n* **Threat Level:** CRITICAL\\n* **Summary:** ...' (property dump)\nGOOD ANSWER: 'You have one CRITICAL hit in the last batch (id 12, ~1 min ago) and three HIGH events right behind it. All four target the CIMS pod and were flagged with full confidence, so they are not noise. The recurring target suggests a focused campaign on the same service — worth checking the source IPs in attack_logs to see if it is one actor.'\n\nBAD ANSWER: '**Critical Attacks**\\n* **CRITICAL:** 1\\n* **HIGH:** 3' (no interpretation)\nGOOD ANSWER: 'Threats skew HIGH: 3 events at HIGH and 1 at CRITICAL, with no MEDIUM or LOW. The asymmetry means the scanner is correctly tuned but most findings are serious — do you want me to break down the affected services?'"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [416, 448],
+      "id": "06b45332-d02c-4571-babe-60b591da8f9a",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": "qwen2.5:7b",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [240, 736],
+      "id": "c73a4eb5-acb1-4835-8ea3-08f52c98b18d",
+      "name": "Ollama Chat Model",
+      "credentials": {
+        "ollamaApi": {
+          "id": "5QwNNB6UfoYvLmfN",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Run a read-only PostgreSQL SELECT query against the 'voc' schema. Tables: voc.scan_sessions (id, session_id, started_at, ended_at, status, total_attacks, critical_count, high_count, medium_count, low_count, n8n_workflow_id), voc.ai_attack_analysis (id, session_id, timestamp, logs_analyzed, threat_detected, threat_level, attack_types[], affected_services[], summary, recommendations[], confidence), voc.attack_logs (id, session_id, source_platform, timestamp, source_ip, target_service, endpoint, method, headers, payload, attack_type, severity, status), voc.ai_analysis (id, session_id, timestamp, analysis_type, results, confidence), voc.cims_endpoints (id, service_name, endpoint_url, method, protected, last_scanned_at). Always qualify with the 'voc.' prefix.",
+        "operation": "executeQuery",
+        "query": "={{ $fromAI('sql', 'A single safe PostgreSQL SELECT statement. Always prefix tables with voc. Example: SELECT COUNT(*) FROM voc.scan_sessions') }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgresTool",
+      "typeVersion": 2.6,
+      "position": [640, 736],
+      "id": "14bb1339-098e-409b-ab36-50de021a1970",
+      "name": "Execute Query",
+      "notesInFlow": false,
+      "credentials": {
+        "postgres": {
+          "id": "rMzoqywx9SaZ7QSZ",
+          "name": "Postgres account"
+        }
+      },
+      "notes": "Always Output Data"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "AI Agent": {
+      "main": [[{ "node": "Respond to Webhook", "type": "main", "index": 0 }]]
+    },
+    "Execute Query": {
+      "ai_tool": [[{ "node": "AI Agent", "type": "ai_tool", "index": 0 }]]
+    },
+    "Window Buffer Memory": {
+      "ai_memory": [[{ "node": "AI Agent", "type": "ai_memory", "index": 0 }]]
+    },
+    "Ollama Chat Model": {
+      "ai_languageModel": [[{ "node": "AI Agent", "type": "ai_languageModel", "index": 0 }]]
+    },
+    "Webhook": {
+      "main": [[{ "node": "AI Agent", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "5cb27823-72d5-4941-8ad2-4853e45b7c07",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "9a0786af86c556a5c642395d6f0193de5d67fa52d8b7186144a894890f8cf88a"
+  },
+  "id": "Z3INHn27hwO1LugC",
+  "tags": []
+}

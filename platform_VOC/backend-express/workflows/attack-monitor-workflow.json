@@ -1,0 +1,258 @@
+{
+  "name": "CIMS Attack Monitor",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "attack-monitor",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook-start",
+      "name": "Webhook (Attack Input)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "cims-attack-monitor"
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:8000/api/v1/detection/log-attack",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "session_id",
+              "value": "={{ $json.session_id }}"
+            },
+            {
+              "name": "source_ip",
+              "value": "={{ $json.headers['x-forwarded-for'] || $json.ip }}"
+            },
+            {
+              "name": "target_service",
+              "value": "={{ $json.target_service }}"
+            },
+            {
+              "name": "endpoint",
+              "value": "={{ $json.endpoint }}"
+            },
+            {
+              "name": "method",
+              "value": "={{ $json.method }}"
+            },
+            {
+              "name": "headers",
+              "value": "={{ $json.headers }}"
+            },
+            {
+              "name": "payload",
+              "value": "={{ $json.body }}"
+            },
+            {
+              "name": "attack_type",
+              "value": "={{ $json.attack_type || 'unknown' }}"
+            },
+            {
+              "name": "severity",
+              "value": "={{ $json.severity || 'medium' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "log-attack-post",
+      "name": "Log Attack to VOC Backend",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:11434/api/generate",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "llama3:7b"
+            },
+            {
+              "name": "prompt",
+              "value": "You are a cybersecurity expert analyzing an attack attempt on a healthcare system (CIMS). Analyze the following attack and provide a JSON response:\n\n{\n  \"threat_level\": \"Critical|High|Medium|Low\",\n  \"attack_classification\": \"SQL Injection|XSS|DDOS|Brute Force|Privilege Escalation|Zero-day|Other\",\n  \"goal\": \"What the attacker was trying to accomplish\",\n  \"recommendations\": [\"action 1\", \"action 2\"]\n}\n\nAttack Details:\n- Target: {{ $json.target_service }}\n- Endpoint: {{ $json.endpoint }}\n- Method: {{ $json.method }}\n- Payload: {{ $json.payload }}\n- Attack Type: {{ $json.attack_type }}\n\nProvide ONLY valid JSON, no explanation."
+            },
+            {
+              "name": "stream",
+              "value": false
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "ollama-analyze",
+      "name": "AI Analysis (Ollama llama3)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:8000/api/v1/detection/log-attack",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "session_id",
+              "value": "={{ $json.session_id }}"
+            },
+            {
+              "name": "source_ip",
+              "value": "={{ $json.source_ip }}"
+            },
+            {
+              "name": "target_service",
+              "value": "={{ $json.target_service }}"
+            },
+            {
+              "name": "endpoint",
+              "value": "={{ $json.endpoint }}"
+            },
+            {
+              "name": "method",
+              "value": "POST"
+            },
+            {
+              "name": "payload",
+              "value": "={{ $json.ollama_response }}"
+            },
+            {
+              "name": "attack_type",
+              "value": "ai_analysis"
+            },
+            {
+              "name": "severity",
+              "value": "={{ $json.threat_level || 'low' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "save-analysis",
+      "name": "Save AI Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"status\": \"captured\", \"analysis\": $json.ollama_response } }}",
+        "options": {}
+      },
+      "id": "respond-success",
+      "name": "Return Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1050, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "const attackType = $input.first().json.method + ' ' + $input.first().json.endpoint;\n\nlet severity = 'medium';\nlet attackCategory = 'unknown';\n\n// Simple attack classification\nif (attackType.includes('DROP') || attackType.includes('DELETE') || $input.first().json.body?.toLowerCase?.()?.includes('drop table')) {\n  severity = 'critical';\n  attackCategory = 'DDOS';\n} else if ($input.first().json.body?.toLowerCase?.()?.includes('select') && $input.first().json.body?.toLowerCase?.()?.includes('from')) {\n  severity = 'critical';\n  attackCategory = 'SQL Injection';\n} else if ($input.first().json.body?.toLowerCase?.()?.includes('<script>')) {\n  severity = 'high';\n  attackCategory = 'XSS';\n} else if ($input.first().json.headers?.authorization?.startsWith('Basic')) {\n  severity = 'medium';\n  attackCategory = 'Brute Force';\n} else if ($input.first().json.body?.toLowerCase?.()?.includes('union')) {\n  severity = 'high';\n  attackCategory = 'SQL Injection';\n}\n\n$input.first().json.attack_type = attackCategory;\n$input.first().json.severity = severity;\n$input.first().json.target_service = 'cims-' + ($input.first().json.endpoint.split('/')[1] || 'api');\n\nreturn $input.all();"
+      },
+      "id": "classify-attack",
+      "name": "Classify Attack",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [550, 300]
+    }
+  ],
+  "connections": {
+    "Webhook (Attack Input)": {
+      "main": [
+        [
+          {
+            "node": "Log Attack to VOC Backend",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Attack to VOC Backend": {
+      "main": [
+        [
+          {
+            "node": "Classify Attack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify Attack": {
+      "main": [
+        [
+          {
+            "node": "AI Analysis (Ollama llama3)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Analysis (Ollama llama3)": {
+      "main": [
+        [
+          {
+            "node": "Save AI Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save AI Analysis": {
+      "main": [
+        [
+          {
+            "node": "Return Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "staticData": null,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "id": "cims-attack-monitor-workflow",
+  "tags": ["security", "cims", "attack-detection"],
+  "trigger": "webhook",
+  "updatedAt": "2026-04-22T00:00:00.000Z",
+  "createdAt": "2026-04-22T00:00:00.000Z"
+}

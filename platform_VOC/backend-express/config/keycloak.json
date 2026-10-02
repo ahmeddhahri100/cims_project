@@ -1,0 +1,17 @@
+{
+  "realm": "platform-voc",
+  "auth-server-url": "http://localhost:8080",
+  "ssl-required": "external",
+  "resource": "platform-voc-client",
+  "confidential-port": 0,
+  "bearer-only": false,
+  "enable-cors": true,
+  "cors-max-age": -1,
+  "allow-any-resource-access": false,
+  "allow-untrusted-x509-certificates": false,
+  "expose-session": true,
+  "verify-token-audience": false,
+  "credentials": {
+    "secret": "REDACTED_SECRET"
+  }
+}

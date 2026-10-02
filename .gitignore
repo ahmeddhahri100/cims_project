@@ -1,0 +1,65 @@
+# ---------- Secrets & environment (NEVER commit) ----------
+.env
+.env.*
+!.env.example
+realm-export.json
+secrets.yaml
+*.secret.yaml
+secrets/
+*.key
+*.crt
+*.pem
+kubeconfig*
+.kube/
+
+# ---------- Node.js ----------
+node_modules/
+dist/
+build/
+coverage/
+*.log
+npm-debug.log*
+yarn-error.log*
+.pnpm-store/
+
+# ---------- Python ----------
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# ---------- Docker ----------
+.dockerignore
+
+# ---------- Binaries ----------
+minikube-linux-amd64
+*.exe
+*.dll
+*.so
+*.dylib
+
+# ---------- Temporary ----------
+generate_k8s_files.py
+*.tmp
+*.swp
+*.swo
+.goutputstream-*
+
+# ---------- IDE ----------
+.vscode/
+.idea/
+*.iml
+
+# ---------- OS ----------
+.DS_Store
+Thumbs.db
+
+# ---------- SAST / reports ----------
+semgrep.sarif
+*.sarif
