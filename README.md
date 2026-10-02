@@ -1,194 +1,81 @@
 # CIMS Project
 
-A hospital information system (CIMS) built as **two independent layers**:
+## What is this project?
 
-| Layer | Folder | What it is |
-|---|---|---|
-| **The application** | [`microservice/`](microservice/) | The actual hospital software — patients, doctors, appointments. |
-| **The security platform** | [`platform_VOC/`](platform_VOC/) | A SOC dashboard that watches the application, reads its logs and explains attacks with AI. |
+**CIMS** is a hospital information system. It replaces the paper-based processes of a clinic with a single web application where doctors manage their patients and appointments.
 
-The two layers are deliberately decoupled: the hospital system works on its own, and the security platform observes it from the outside without changing any of its code.
+A real clinic has a security problem: sensitive patient data is spread across many small services, each with its own database, and nobody has a global view of what is happening inside the system. A compromised account, a leaked token or a malicious request leaves no visible trace.
 
----
+This project has **two parts**:
 
-## 1. The two layers at a glance
-
-### `microservice/` — the hospital system
-
-A polyglot microservices backend. Each service owns its own database and never reads another service's tables.
-
-| Service | Port | Stack | Database |
-|---|---|---|---|
-| `auth-service` | 3001 | Node.js / Express | PostgreSQL (`cims_auth`) |
-| `patient-service` | 3002 | Node.js / Express | MongoDB (`cims_patients`) |
-| `rdv-service` | 3003 | Python / FastAPI | MySQL (`cims_rdv`) |
-| `frontend` | 3004 | React + Vite (served by Nginx) | — |
-
-**Authentication** is a custom JWT issued by `auth-service` (HS256, 24h). Every other service validates each request by calling `POST /api/auth/verify` on `auth-service`. Roles are `patient`, `doctor` and `admin`.
-
-The frontend is a React SPA that talks to all three services through Nginx, which reverse-proxies `/api/auth`, `/api/patients` and `/api/rdv` to the right container. It supports English and French (i18next).
-
-> A Keycloak container is defined in `docker-compose.yml` but is **not used** — authentication is still the custom JWT flow above.
-
-Full details: [`microservice/README.md`](microservice/README.md) (French) · [K8s guide](microservice/k8s/README.md)
-
-### `platform_VOC/` — the security platform
-
-A monitoring and incident-response console for the hospital system.
-
-| Component | Port | Stack |
-|---|---|---|
-| `backend-express` | 8000 | Node.js / Express |
-| `frontend` | 5173 | React 19 + Vite |
-| n8n | 5678 | workflow automation |
-| Ollama | 11434 | local LLM (`llama3`, `qwen2.5`) |
-| Keycloak | 8080 | SSO — realm `platform-voc` |
-| Elasticsearch | 9200 | log storage |
-| Kibana | 5601 | log exploration |
-| PostgreSQL | 5432 | scan sessions, attack logs, AI analysis |
-
-**Authentication** here *is* Keycloak (realm `platform-voc`, OIDC + JWKS token verification), with optional **TOTP two-factor** on top.
-
-What it does:
-
-- Kicks off Kubernetes scans through an n8n webhook
-- Logs detected attacks, then asks Ollama to classify and explain them
-- Shows results on a live dashboard, stores them in PostgreSQL, and exports PDF reports
-- Includes a chatbot that answers questions by querying the analysis tables with natural language
-- Sends email alerts with a threat level when the n8n workflow fires
+1. **The hospital application** — patients, doctors and appointments.
+2. **A security platform** — a dashboard that watches the application, reads its logs and explains suspicious activity using AI.
 
 ---
 
-## 2. How the layers connect
+## What is the solution?
 
-The hospital system never calls the security platform. Data flows one way only, through **logs**:
+### 1. The hospital application (`microservice/`)
+
+The system is split into three independent services, each owning its own database:
+
+- **Authentication** — sign up, sign in, roles (`patient`, `doctor`, `admin`). Issues a token that the other services verify.
+- **Patients** — patient records, profiles, created and updated by doctors.
+- **Appointments** — booking, cancelling and tracking doctor availability, with a calendar view.
+
+A React front end talks to all three. The user interface is available in **French and English**.
+
+### 2. The security platform (`platform_VOC/`)
+
+Instead of adding monitoring code into the hospital services, the platform observes them **from the outside**:
+
+- The application runs on Kubernetes, and **Filebeat** ships its logs to Elasticsearch.
+- **n8n** reads those logs on a schedule and hands them to a **local AI model (Ollama)**.
+- The AI decides whether the activity is a genuine attack, rates the threat, and explains what happened in plain language.
+- Results appear on a **live dashboard**, are stored for history, and are emailed as alerts.
+- Results can also be exported as a **PDF report**, and a **chatbot** answers questions about past incidents by querying the database in natural language.
+
+### 3. Secure development pipeline
+
+Every change is checked automatically before it ships: unit tests, dependency and container scanning, static analysis of the source code, and an OWASP web scan. The Kubernetes configuration is applied by **ArgoCD**, so the running system always matches the repository.
+
+---
+
+## What are the results?
+
+**A working end-to-end system**
+- Three services with three different databases, running together and authenticating against each other.
+- Doctors can register patients and manage appointments through a bilingual web interface.
+
+**A functioning AI security layer**
+- Attack attempts are captured, classified by a local AI model, and explained in readable language instead of raw log lines.
+- Every incident keeps a timestamped history, so a security engineer can review what happened and when.
+- Alerts are emailed with a threat level, and reports can be exported as PDF.
+
+**Automated security checking**
+- Vulnerabilities in source code, dependencies and container images are detected during the pipeline rather than after deployment.
+- Kubernetes deployments are reconciled automatically, removing manual configuration drift.
+
+---
+
+## Repository layout
 
 ```
-microservice/  (running on Kubernetes)
-      │
-      │  Filebeat ships pod logs
-      ▼
-Elasticsearch  ──────────────────────────┐
-  filebeat-cims-*                        │
-                                         │  n8n workflow reads recent logs
-                                         ▼
-                              n8n  ──►  Ollama  ──►  threat level + AI analysis
-                                │                        │
-                                │                        ▼
-                                └──────────────►  PostgreSQL (voc.*)
-                                                         │
-                                                         ▼
-                                              platform_VOC/  dashboard,
-                                              PDF report, chatbot, email alert
+cims_project/
+├── microservice/     the hospital application (3 services + web interface)
+├── platform_VOC/     the AI security platform (dashboard, automation, AI)
+└── README.md
 ```
 
-`platform_VOC` also keeps a small inventory of the microservice endpoints in its `cims_endpoints` table, so scans know what to target.
+Each folder contains its own setup instructions.
 
 ---
 
-## 3. Running it
+## Note on credentials
 
-### Prerequisites
+This repository contains **no real credentials**. Values you find in the configuration files are local-development placeholders that exist only to let the project start on a laptop. Real deployments must supply their own secrets through environment variables — the `.env.example` and `secrets.example.yaml` templates show which ones are required.
 
-Docker and Docker Compose. Everything else runs inside containers.
+Two vulnerabilities are known and documented rather than hidden:
 
-### Layer 1 — the hospital system
-
-```bash
-cd microservice
-sudo docker compose up --build -d
-./check.sh                                          # waits for services to be healthy
-```
-
-The app is then on **http://localhost:3004**. Swagger docs for the appointment API: **http://localhost:3003/docs**.
-
-| Port | Service |
-|---|---|
-| 3004 | Frontend (Nginx) |
-| 3001 / 3002 / 3003 | auth / patient / rdv APIs |
-| 5433 / 27017 / 3306 | PostgreSQL / MongoDB / MySQL |
-
-Run the tests with `npm test` inside `auth-service` and `patient-service`, and `pytest` inside `rdv-service`.
-
-### Layer 2 — the security platform
-
-Infrastructure first:
-
-```bash
-cd platform_VOC
-docker compose up -d                                # n8n, Ollama, Keycloak, Elasticsearch, Kibana, PostgreSQL
-```
-
-Then the two apps, which run outside Docker:
-
-```bash
-cd backend-express
-cp .env.example .env        # fill in the Keycloak client secret and admin credentials
-npm install
-npm run dev                 # → http://localhost:8000
-
-cd ../frontend
-cp .env.example .env
-npm install
-npm run dev                 # → http://localhost:5173
-```
-
-> **Note:** both layers map Keycloak to host port `8080`, so they cannot run at the same time. Stop one before starting the other, or change one of the port mappings.
-
-### Kubernetes (hospital system only)
-
-```bash
-cd microservice/k8s
-./deploy-minikube.sh
-```
-
-Applies the namespace, config, databases, all four deployments and the ingress to a local Minikube cluster. Copy `secrets.example.yaml` to `secrets.yaml` and fill it in first — it holds the credentials the deployments need.
-
----
-
-## 4. Configuration and secrets
-
-**No real credentials belong in this repository.** Every value that must be set is either read from an environment variable or supplied through a template:
-
-| Template | Used by |
-|---|---|
-| `microservice/k8s/secrets.example.yaml` | Kubernetes secrets for the hospital system |
-| `platform_VOC/backend-express/.env.example` | Backend, Keycloak, PostgreSQL, Ollama, n8n |
-| `platform_VOC/frontend/.env.example` | Frontend Keycloak settings |
-
-The real files (`secrets.yaml`, `.env`, `realm-export.json`) are gitignored and were never committed.
-
-Values still visible in tracked files are **local-development placeholders** (`devpassword`, `n8npassword`, `CHANGE_ME`) that exist only to make `docker compose up` work out of the box. They are not safe for anything but a laptop.
-
----
-
-## 5. DevSecOps
-
-The `microservice` layer ships a full pipeline in [`.gitlab-ci.yml`](microservice/.gitlab-ci.yml):
-
-- **Build** — four images tagged with the commit SHA
-- **Test** — Jest for the Node services, pytest for the FastAPI service, frontend build
-- **Scan** — Trivy (filesystem and image), Semgrep SAST with custom rules in `.semgrep.yml`, OWASP ZAP on a schedule
-- **Deploy** — `main` only: retags the Kubernetes manifests and pushes, which ArgoCD syncs automatically
-
-Kubernetes manifests live in [`microservice/k8s/`](microservice/k8s/) and include namespace and resource quotas, network policies, four horizontal pod autoscalers, Filebeat log shipping and an ArgoCD `Application`.
-
-The `platform_VOC` layer has no CI yet.
-
----
-
-## 6. Known limitations
-
-Worth knowing before you build on this:
-
-- The two layers are wired together only through Elasticsearch logs. Run the hospital system on Minikube and the platform on the host for the end-to-end flow to work.
-- `platform_VOC` needs a `voc` database schema and a `voc.totp_secrets` table created by hand — nothing creates them automatically, and the backend otherwise writes to the default `public` schema.
-- The Ollama model differs per workflow (`llama3`, `llama3.1`, `qwen2.5`, `deepseek-coder`). Pull the ones you actually need.
-- `n8n-workflows/CIMS K8s Monitor.json` is not importable as-is (unescaped newlines in its JSON). Use the working copy in `platform_VOC/backend-express/workflows/`.
-- The Keycloak client in the frontend should use PKCE rather than a client secret — anything in a `VITE_*` variable is readable by anyone who opens the browser.
-
----
-
-## License
-
-Released for academic and demonstration purposes as a final-year project (PFE).
+- The front end should authenticate to Keycloak using **PKCE** instead of a client secret, because any value in a front-end variable is visible to whoever opens the browser.
+- The two halves of the project both use port `8080` for Keycloak, so they cannot run at the same time on one machine.
