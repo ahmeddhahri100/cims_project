@@ -8,7 +8,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://gitlab.com/cims/microservice.git
+    repoURL: https://gitlab.com/your-org/your-repo.git
     targetRevision: main
     path: k8s
     directory:

@@ -333,4 +333,4 @@ Pour tout problème:
 
 ---
 
-© 2025 CIMS - CIMS
+© 2025 CIMS

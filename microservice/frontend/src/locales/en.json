@@ -15,7 +15,7 @@
   "nav.projects": "PROJECTS",
   "nav.news": "NEWS",
 
-  "header.phone": "REDACTED_PHONE",
+  "header.phone": "+000 000 000",
   "header.email": "contact@cims.example",
 
   "login.title": "Welcome",
@@ -184,7 +184,7 @@
   "landing.appointment_title": "Appointments",
   "landing.appointment_desc": "Intelligent scheduling and management of medical consultations.",
   "landing.appointment_cta": "BOOK",
-  "landing.footer_brand": "DIGITAL HEALTH TUNISIA",
+  "landing.footer_brand": "DIGITAL HEALTH",
   "landing.footer_links": "USEFUL LINKS",
   "landing.footer_contact": "Contact us",
   "landing.footer_offers": "Call for tenders",
@@ -199,7 +199,7 @@
 
   "hero.tag": "INNOVATION & HEALTH",
   "hero.title": "CIMS",
-  "hero.desc": "The leading technology partner for the digital transformation of healthcare.",
+  "hero.desc": "A modern platform for the digital transformation of healthcare.",
   "hero.cta_services": "DISCOVER OUR SERVICES",
   "hero.cta_register": "SIGN UP",
 

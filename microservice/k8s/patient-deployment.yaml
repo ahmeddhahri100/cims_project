@@ -21,7 +21,7 @@ spec:
       - name: gitlab-registry
       containers:
       - name: patient-service
-        image: registry.gitlab.com/cims/microservice/patient-service:latest
+        image: registry.example.com/cims/microservice/patient-service:latest
         imagePullPolicy: Always
         ports:
         - containerPort: 3002

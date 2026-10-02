@@ -15,7 +15,7 @@
   "nav.projects": "PROJETS",
   "nav.news": "ACTUALITÉS",
 
-  "header.phone": "REDACTED_PHONE",
+  "header.phone": "+000 000 000",
   "header.email": "contact@cims.example",
 
   "login.title": "Bienvenue",
@@ -78,7 +78,7 @@
   "register.hero_badge": "Inscription",
   "register.hero_title": "Créez votre",
   "register.hero_title_highlight": "compte santé",
-  "register.hero_desc": "Rejoignez la plateforme de santé numérique . Accédez à tous nos services en toute simplicité.",
+  "register.hero_desc": "Join the digital health platform. Access all our services with ease.",
   "register.feature_appointments": "Rendez-vous",
   "register.feature_appointments_desc": "Prise de RDV en ligne",
   "register.feature_tracking": "Suivi médical",
@@ -89,7 +89,7 @@
   "register.247": "24/7",
   "register.accessible": "Accessible",
   "register.testimonial": "\"J'ai trouvé le meilleur spécialiste en quelques clics. Une plateforme indispensable pour notre système de santé.\"",
-  "register.data_protection": "Protection de vos données : En créant un compte, vous acceptez nos conditions d'utilisation. Vos données personnelles sont protégées par la léglementation applicable.",
+  "register.data_protection": "Protection de vos données : En créant un compte, vous acceptez nos conditions d'utilisation. Vos données personnelles sont protégées par la législation applicable.",
 
   "profile.title": "Profil",
   "profile.logout": "Déconnexion",
@@ -184,7 +184,7 @@
   "landing.appointment_title": "Rendez-vous",
   "landing.appointment_desc": "Planification intelligence et gestion des consultations médicales.",
   "landing.appointment_cta": "RÉSERVER",
-  "landing.footer_brand": "DIGITAL HEALTH TUNISIA",
+  "landing.footer_brand": "DIGITAL HEALTH",
   "landing.footer_links": "LIENS UTILES",
   "landing.footer_contact": "Contactez-nous",
   "landing.footer_offers": "Appels d'offres",
@@ -197,9 +197,9 @@
   "landing.footer_newsletter_desc": "Restez informé des dernières innovations.",
   "landing.footer_newsletter_placeholder": "Votre email",
 
-  "hero.tag": "INNOVATION & SANTÉ",
+  "hero.tag": "INNOVATION & HEALTH",
   "hero.title": "CIMS",
-  "hero.desc": "Le partenaire technologique de référence pour la transformation digitale du secteur de la santé .",
+  "hero.desc": "A modern platform for the digital transformation of healthcare.",
   "hero.cta_services": "DÉCOUVRIR NOS SERVICES",
   "hero.cta_register": "S'INSCRIRE",
 

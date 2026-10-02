@@ -252,7 +252,7 @@ cd k8s && ./deploy-minikube.sh
 ## Base de Données
 
 ### Initialisation
-Le script `docker/postgres/init.sql` initialise les 3 bases avec leurs schémas et insère 5 médecins  par défaut:
+Le script `docker/postgres/init.sql` initialise les 3 bases avec leurs schémas et insère 5 médecins par défaut:
 
 | Médecin | Spécialité |
 |---------|------------|
@@ -403,9 +403,9 @@ curl -X POST http://localhost:3001/api/auth/verify \
 ## Support
 
 - Email: contact@cims.example
-- Tél: REDACTED_PHONE
+- Tél: +000 000 000
 
 ## Licence
 
-© 2025 CIMS - CIMS
+© 2025 CIMS
 Tous droits réservés.

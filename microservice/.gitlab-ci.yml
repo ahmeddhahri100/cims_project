@@ -232,7 +232,7 @@ semgrep:
 # OWASP ZAP Baseline Scan - runs on schedule
 owasp:baseline:
   stage: security
-  image: registry.gitlab.com/cims/microservice/zap-stable:latest
+  image: registry.example.com/cims/microservice/zap-stable:latest
   script:
     - zap-baseline.py -t $ZAP_TARGET_URL -J zap-baseline.json -r zap-baseline-report.html
   artifacts:
@@ -259,7 +259,7 @@ deploy:minikube:
     - |
       for f in k8s/*-deployment.yaml; do
         service=$(basename "$f" | sed 's/-deployment.yaml//')
-        sed -i "s|image: registry.gitlab.com/cims/microservice/${service}:.*|image: registry.gitlab.com/cims/microservice/${service}:${CI_COMMIT_SHORT_SHA}|" "$f"
+        sed -i "s|image: registry.example.com/cims/microservice/${service}:.*|image: registry.example.com/cims/microservice/${service}:${CI_COMMIT_SHORT_SHA}|" "$f"
       done
     - |
       if ! git diff --cached --exit-code; then
