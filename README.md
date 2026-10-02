@@ -43,18 +43,33 @@ Every change is checked automatically before it ships: unit tests, dependency an
 
 ## What are the results?
 
-**A working end-to-end system**
-- Three services with three different databases, running together and authenticating against each other.
-- Doctors can register patients and manage appointments through a bilingual web interface.
+### A working end-to-end system
 
-**A functioning AI security layer**
+- Three services with three different databases (PostgreSQL, MongoDB, MySQL), running together and authenticating against each other.
+- Doctors can register patients and manage appointments through a bilingual (French / English) web interface.
+
+### A functioning AI security layer
+
 - Attack attempts are captured, classified by a local AI model, and explained in readable language instead of raw log lines.
 - Every incident keeps a timestamped history, so a security engineer can review what happened and when.
 - Alerts are emailed with a threat level, and reports can be exported as PDF.
+- A natural-language chatbot answers questions about past incidents.
 
-**Automated security checking**
-- Vulnerabilities in source code, dependencies and container images are detected during the pipeline rather than after deployment.
-- Kubernetes deployments are reconciled automatically, removing manual configuration drift.
+### Automated security checking
+
+Every push triggers the pipeline, which runs **four scanners** in addition to the unit tests: Trivy (filesystem and container images), Semgrep static analysis, and OWASP ZAP.
+
+| Measured result | Value |
+|---|---|
+| Security issues found by static analysis | **21** findings |
+| Categories they fall into | 5 (privilege escalation, containers running as root, missing CSRF protection, wildcard CORS, missing non-root user) |
+| Custom security rules written for this project | 6 |
+| Tools scanning every change | 4 |
+| Kubernetes manifests managed | 19 |
+
+The 21 findings above come from a local Semgrep run. They are real issues the pipeline is designed to surface — privilege escalation and root containers in particular — and they demonstrate that the pipeline works rather than passing silently.
+
+> **Fill in your own figures here.** The numbers above are code-derived. Add the ones only you can measure from your own testing: attacks correctly classified vs. missed, false-positive rate, and the time saved compared with reading logs manually.
 
 ---
 
