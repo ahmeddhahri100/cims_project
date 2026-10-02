@@ -12,6 +12,6 @@
   "expose-session": true,
   "verify-token-audience": false,
   "credentials": {
-    "secret": "REDACTED_SECRET"
+    "secret": ""
   }
 }

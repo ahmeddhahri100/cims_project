@@ -6,11 +6,20 @@ const jwksClient = require('jwks-rsa');
 const KEYCLOAK_URL = process.env.KEYCLOAK_URL || 'http://localhost:8080';
 const KEYCLOAK_REALM = process.env.KEYCLOAK_REALM || 'platform-voc';
 const CLIENT_ID = process.env.CLIENT_ID || 'platform-voc-client';
-const CLIENT_SECRET = process.env.CLIENT_SECRET || 'REDACTED_SECRET';
+const CLIENT_SECRET = process.env.CLIENT_SECRET;
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
-const KC_ADMIN_USER = process.env.KC_ADMIN_USER || 'admin';
-const KC_ADMIN_PASSWORD = process.env.KC_ADMIN_PASSWORD || 'devpassword';
+const KC_ADMIN_USER = process.env.KC_ADMIN_USER;
+const KC_ADMIN_PASSWORD = process.env.KC_ADMIN_PASSWORD;
 const totpService = require('../services/totp');
+
+const REQUIRED_ENV = ['CLIENT_SECRET', 'KC_ADMIN_USER', 'KC_ADMIN_PASSWORD'];
+const missingEnv = REQUIRED_ENV.filter((name) => !process.env[name]);
+if (missingEnv.length > 0) {
+  throw new Error(
+    `Missing required environment variables: ${missingEnv.join(', ')}. ` +
+      'Copy .env.example to .env and fill them in.'
+  );
+}
 
 const client = jwksClient({
   jwksUri: `${KEYCLOAK_URL}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/certs`,
