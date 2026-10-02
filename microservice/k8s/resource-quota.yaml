@@ -1,0 +1,20 @@
+# Resource quota for the CIMS namespace
+# ═══════════════════════════════════════════════════════════════
+
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: cims-quota
+  namespace: cims
+spec:
+  hard:
+    requests.cpu: "2"
+    requests.memory: "2Gi"
+    limits.cpu: "4"
+    limits.memory: "4Gi"
+    pods: "20"
+    services: "10"
+    replicationcontrollers: "20"
+    persistentvolumeclaims: "5"
+    services.loadbalancers: "2"
+    services.nodeports: "5"

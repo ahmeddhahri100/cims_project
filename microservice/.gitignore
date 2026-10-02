@@ -1,0 +1,53 @@
+# Node.js
+node_modules/
+dist/
+*.log
+.env*
+coverage/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+*.egg-info/
+.pytest_cache/
+
+# Docker
+.dockerignore
+
+# Binaries
+minikube-linux-amd64
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Temporary files
+generate_k8s_files.py
+*.tmp
+*.swp
+*.swo
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Kubernetes
+*.secret.yaml
+secrets/
+.kube/
+kubeconfig*
+*.key
+*.crt
+
+# SAST Reports
+semgrep.sarif
+*.sarif

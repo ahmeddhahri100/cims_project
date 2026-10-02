@@ -1,0 +1,232 @@
+services:
+  # ─────────────────────────────────────────────
+  # INFRASTRUCTURE - DATABASES
+  # ─────────────────────────────────────────────
+
+  postgres-auth:
+    image: postgres:16-alpine
+    container_name: cims-postgres-auth
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: devpassword
+      POSTGRES_DB: cims_auth
+    volumes:
+      - postgres_auth_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    networks:
+      - cims-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mongodb-patient:
+    image: mongo:6.0
+    container_name: cims-mongo-patient
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: devpassword
+      MONGO_INITDB_DATABASE: cims_patients
+    volumes:
+      - mongo_patient_data:/data/db
+    ports:
+      - "27017:27017"
+    networks:
+      - cims-net
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --eval 'db.runCommand({ping:1})' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mysql-rdv:
+    image: mysql:8.0
+    container_name: cims-mysql-rdv
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: devpassword
+      MYSQL_DATABASE: cims_rdv
+    volumes:
+      - mysql_rdv_data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    networks:
+      - cims-net
+    healthcheck:
+      test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─────────────────────────────────────────────
+  # SECURITY & AI TOOLS
+  # ─────────────────────────────────────────────
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0
+    container_name: cims-keycloak
+    command: start-dev --import-realm
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: devpassword
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres-auth:5432/cims_auth
+      KC_DB_USERNAME: postgres
+      KC_DB_PASSWORD: devpassword
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres-auth:
+        condition: service_healthy
+    networks:
+      - cims-net
+
+  #ollama:
+   # image: ollama/ollama:latest
+    #container_name: cims-ollama
+    #restart: unless-stopped
+    #volumes:
+    #- ollama_data:/root/.ollama
+    #ports:
+    #- "11434:11434"
+    #networks:
+    #- cims-net
+
+  #n8n:
+    #image: n8nio/n8n:latest
+    #container_name: cims-n8n
+    #restart: unless-stopped
+    #ports:
+      #- "5678:5678"
+    #environment:
+      #- N8N_HOST=localhost
+      #- N8N_PORT=5678
+      #- N8N_PROTOCOL=http
+      #- NODE_FUNCTION_ALLOW_EXTERNAL=jwt-decode
+    #volumes:
+      #- n8n_data:/home/node/.n8n
+    #networks:
+      #- cims-net
+
+  # ─────────────────────────────────────────────
+  # MICROSERVICES
+  # ─────────────────────────────────────────────
+
+  auth-service:
+    build:
+      context: ./auth-service
+    container_name: cims-auth
+    restart: unless-stopped
+    env_file: ./auth-service/.env
+    environment:
+      DATABASE_URL: postgresql://postgres:devpassword@postgres-auth:5432/cims_auth
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres-auth:
+        condition: service_healthy
+    networks:
+      - cims-net
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'node -e "require(''http'').get(''http://localhost:3001/health'', r => process.exit(r.statusCode===200?0:1))"',
+        ]
+      interval: 15s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+
+  patient-service:
+    build:
+      context: ./patient-service
+    container_name: cims-patient
+    restart: unless-stopped
+    env_file: ./patient-service/.env
+    environment:
+      MONGODB_URI: mongodb://admin:devpassword@mongodb-patient:27017/cims_patients?authSource=admin
+      AUTH_SERVICE_URL: http://auth-service:3001
+    ports:
+      - "3002:3002"
+    depends_on:
+      mongodb-patient:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+    networks:
+      - cims-net
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'node -e "require(''http'').get(''http://localhost:3002/health'', r => process.exit(r.statusCode===200?0:1))"',
+        ]
+      interval: 15s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+
+  rdv-service:
+    build:
+      context: ./rdv-service
+    container_name: cims-rdv
+    restart: unless-stopped
+    env_file: ./rdv-service/.env
+    environment:
+      DATABASE_URL: mysql+pymysql://root:devpassword@mysql-rdv:3306/cims_rdv
+      AUTH_SERVICE_URL: http://auth-service:3001
+      PATIENT_SERVICE_URL: http://patient-service:3002
+    ports:
+      - "3003:3003"
+    depends_on:
+      mysql-rdv:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+    networks:
+      - cims-net
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'python -c "import urllib.request; urllib.request.urlopen(''http://localhost:3003/health'')"',
+        ]
+      interval: 15s
+      timeout: 5s
+      start_period: 40s
+      retries: 3
+
+  # ─────────────────────────────────────────────
+  # FRONTEND
+  # ─────────────────────────────────────────────
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: cims-frontend
+    restart: unless-stopped
+    ports:
+      - "3004:80"
+    depends_on:
+      - auth-service
+      - patient-service
+      - rdv-service
+    networks:
+      - cims-net
+
+# ─────────────────────────────────────────────
+volumes:
+  postgres_auth_data:
+  mongo_patient_data:
+  mysql_rdv_data:
+  #ollama_data:
+  #n8n_data:
+
+networks:
+  cims-net:
+    driver: bridge

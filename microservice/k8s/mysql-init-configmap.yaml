@@ -1,0 +1,39 @@
+# MySQL Init Script ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mysql-init-script
+  namespace: cims
+  labels:
+    app: mysql
+data:
+  init.sql: |
+    CREATE DATABASE IF NOT EXISTS cims_rdv;
+    USE cims_rdv;
+
+    CREATE TABLE IF NOT EXISTS appointments (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      patient_id VARCHAR(255) NOT NULL,
+      doctor_id VARCHAR(255) NOT NULL,
+      appointment_date DATETIME NOT NULL,
+      reason VARCHAR(255) NOT NULL,
+      notes TEXT,
+      status VARCHAR(50) DEFAULT 'pending',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS doctors (
+      id VARCHAR(50) PRIMARY KEY,
+      name VARCHAR(255) NOT NULL,
+      speciality VARCHAR(255) NOT NULL,
+      email VARCHAR(255),
+      phone VARCHAR(20),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    INSERT IGNORE INTO doctors (id, name, speciality) VALUES
+      ('dr-001', 'Dr. Sana Mansour', 'Cardiologie'),
+      ('dr-002', 'Dr. Karim Trabelsi', 'Pédiatrie'),
+      ('dr-003', 'Dr. Leila Gharbi', 'Neurologie'),
+      ('dr-004', 'Dr. Mounir Belhaj', 'Dermatologie'),
+      ('dr-005', 'Dr. Ines Sfar', 'Gynécologie');

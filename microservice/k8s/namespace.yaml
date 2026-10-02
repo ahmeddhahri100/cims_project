@@ -1,0 +1,13 @@
+# ═══════════════════════════════════════════════════════════════
+# Kubernetes Namespace for CIMS Microservices
+# ═══════════════════════════════════════════════════════════════
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cims
+  labels:
+    name: cims
+    app: cims-microservices
+    environment: development
+    project: cims-pfe

@@ -1,0 +1,27 @@
+# PostgreSQL Init Script ConfigMap
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init-script
+  namespace: cims
+  labels:
+    app: postgres
+data:
+  init.sql: |
+    -- Create databases
+    CREATE DATABASE cims_auth;
+
+    -- Connect to cims_auth database and create tables
+    \c cims_auth;
+
+    CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY,
+      email VARCHAR(255) UNIQUE NOT NULL,
+      password VARCHAR(255) NOT NULL,
+      first_name VARCHAR(100) NOT NULL,
+      last_name VARCHAR(100) NOT NULL,
+      role VARCHAR(50) DEFAULT 'patient',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      last_login TIMESTAMP
+    );

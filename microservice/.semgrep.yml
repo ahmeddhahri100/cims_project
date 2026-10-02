@@ -1,0 +1,56 @@
+rules:
+  - id: python-security
+    pattern: |
+      exec($CODE)
+      eval($CODE)
+    message: Avoid using exec/eval as it can lead to code injection vulnerabilities
+    severity: ERROR
+    languages:
+      - python
+
+  - id: python-hardcoded-secret
+    pattern: |
+      password = "..."
+      api_key = "..."
+      secret = "..."
+    message: Hardcoded secrets detected. Use environment variables instead
+    severity: WARNING
+    languages:
+      - python
+
+  - id: javascript-sql-injection
+    pattern: |
+      query($SQL + $INPUT)
+      query(`...${$INPUT}...`)
+    message: Potential SQL injection vulnerability. Use parameterized queries
+    severity: ERROR
+    languages:
+      - javascript
+
+  - id: javascript-hardcoded-secret
+    pattern: |
+      const password = "..."
+      const apiKey = "..."
+      let token = "..."
+    message: Hardcoded secrets detected. Use environment variables instead
+    severity: WARNING
+    languages:
+      - javascript
+
+  - id: python-sql-injection
+    pattern: |
+      cursor.execute("SELECT * FROM ... " + $USER_INPUT)
+      cursor.execute(f"SELECT * FROM ...{$USER_INPUT}")
+    message: Potential SQL injection vulnerability. Use parameterized queries
+    severity: ERROR
+    languages:
+      - python
+
+  - id: python-unsafe-yaml-load
+    pattern: |
+      yaml.load($INPUT, Loader=yaml.FullLoader)
+      yaml.load($INPUT)
+    message: Unsafe YAML loading. Use yaml.safe_load() instead
+    severity: WARNING
+    languages:
+      - python
